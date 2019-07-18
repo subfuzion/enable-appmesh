@@ -92,7 +92,7 @@ export class MeshDemoStack extends Stack {
     });
 
     //repositoryarn: '226767807331.dkr.ecr.us-west-2.amazonaws.com/gateway:latest',
-    const gatewayContainer = gatewayTaskDef.addContainer('gatewaycontainer', {
+    const gatewayContainer = gatewayTaskDef.addContainer('app', {
       image: ContainerImage.fromRegistry(`subfuzion/colorgateway:${APP_TAG}`),
       environment: {
         SERVER_PORT: `${APP_PORT}`,
@@ -142,7 +142,7 @@ export class MeshDemoStack extends Stack {
     });
 
     // ========================================================================
-    // colorteller
+    // blue colorteller
     // ========================================================================
 
     const colortellerTaskDef = new FargateTaskDefinition(this, 'colortellertaskdef', {
@@ -151,7 +151,7 @@ export class MeshDemoStack extends Stack {
       memoryLimitMiB: 1024,
     });
 
-    const colortellerContainer = colortellerTaskDef.addContainer('colortellercontainer', {
+    const colortellerContainer = colortellerTaskDef.addContainer('app', {
       image: ContainerImage.fromRegistry(`subfuzion/colorteller:${APP_TAG}`),
       environment: {
         SERVER_PORT: `${APP_PORT}`,
@@ -173,6 +173,43 @@ export class MeshDemoStack extends Stack {
       securityGroup: internalSecurityGroup,
       cloudMapOptions: {
         name: 'colorteller',
+        dnsTtl: Duration.minutes(1)
+      },
+    });
+
+    // ========================================================================
+    // green colorteller
+    // ========================================================================
+
+    const greenColorTellerTaskDef = new FargateTaskDefinition(this, 'GreenColorTellerTaskdef', {
+      taskRole: taskRole,
+      cpu: 512,
+      memoryLimitMiB: 1024,
+    });
+
+    const greenColorTellerContainer = greenColorTellerTaskDef.addContainer('app', {
+      image: ContainerImage.fromRegistry(`subfuzion/colorteller:${APP_TAG}`),
+      environment: {
+        SERVER_PORT: `${APP_PORT}`,
+        COLOR: 'green',
+      },
+      logging: new AwsLogDriver({
+        streamPrefix: 'app',
+      }),
+    });
+    greenColorTellerContainer.addPortMappings({
+      containerPort: APP_PORT,
+    })
+
+    const greenColorTellerService = new FargateService(this, 'GreenColorTellerService', {
+      cluster: cluster,
+      serviceName: 'greencolorteller',
+      taskDefinition: greenColorTellerTaskDef,
+      desiredCount: 1,
+      securityGroup: internalSecurityGroup,
+      cloudMapOptions: {
+        name: 'greencolorteller',
+        dnsTtl: Duration.minutes(1)
       },
     });
 
