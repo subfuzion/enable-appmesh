@@ -6,19 +6,32 @@ import {ApplicationLoadBalancer, HealthCheck} from "@aws-cdk/aws-elasticloadbala
 import {LoadBalancedFargateService, LoadBalancerType} from "@aws-cdk/aws-ecs-patterns";
 
 export class MeshDemoStack extends Stack {
+
+  readonly APP_TAG = "v1";
+  readonly APP_PORT = 8080;
+
+  taskRole: Role;
+  taskExecutionRole: Role;
+
+  vpc: Vpc;
+  cluster: Cluster;
+  namespace: string;
+
+  internalSecurityGroup: SecurityGroup;
+  externalSecurityGroup: SecurityGroup;
+
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
 
-    const APP_PORT = 8080;
-    const APP_TAG = 'v1';
+    this.createVpc();
+    this.createCluster();
+    this.createGateway();
+    this.createColorTeller('blue', 'green');
+  }
 
-    // ========================================================================
-    // vpc
-    // ========================================================================
-
-    // Deploy a VPC
-    // It will have 2 AZs, 2 NAT gateways, and an internet gateway
-    const vpc = new Vpc(this, 'demovpc', {
+  createVpc() {
+    // The VPC will have 2 AZs, 2 NAT gateways, and an internet gateway
+    this.vpc = new Vpc(this, 'demoVPC', {
       cidr: '10.0.0.0/16',
       maxAzs: 2,
       subnetConfiguration: [
@@ -36,88 +49,91 @@ export class MeshDemoStack extends Stack {
     });
 
     // Allow inbound web traffic on port 80
-    const externalSecurityGroup = new SecurityGroup(this, 'demoexternalsg', {
-      vpc: vpc,
+    this.externalSecurityGroup = new SecurityGroup(this, 'DemoExternalSG', {
+      vpc: this.vpc,
       allowAllOutbound: true,
     });
-    externalSecurityGroup.connections.allowFromAnyIpv4(Port.tcp(80));
+    this.externalSecurityGroup.connections.allowFromAnyIpv4(Port.tcp(80));
 
     // Allow communication within the vpc for the app and envoy containers
     // - 8080: default app port for gateway and colorteller
     // - 9901: envoy admin interface, used for health check
     // - 15000: envoy ingress ports (egress over 15001 will be allowed by allowAllOutbound)
-    const internalSecurityGroup = new SecurityGroup(this, 'demointernalsg', {
-      vpc: vpc,
+    this.internalSecurityGroup = new SecurityGroup(this, 'DemoInternalSG', {
+      vpc: this.vpc,
       allowAllOutbound: true,
     });
-    [ Port.tcp(APP_PORT), Port.tcp(9901), Port.tcp(15000) ].forEach(port => {
-      internalSecurityGroup.connections.allowInternally(port);
+    [ Port.tcp(this.APP_PORT), Port.tcp(9901), Port.tcp(15000) ].forEach(port => {
+      this.internalSecurityGroup.connections.allowInternally(port);
     });
+  }
 
-    // ========================================================================
-    // cluster
-    // ========================================================================
-
+  createCluster() {
     // Deploy a Fargate cluster on ECS
-    const cluster = new Cluster(this, 'democluster', {
-      vpc: vpc,
+    this.cluster = new Cluster(this, 'DemoCluster', {
+      vpc: this.vpc,
     });
 
     // Use Cloud Map for service discovery within the cluster, which
     // relies on either ECS Service Discovery or App Mesh integration
     // (default: cloudmap.NamespaceType.DNS_PRIVATE)
-    const namespace = "mesh.local";
-    cluster.addDefaultCloudMapNamespace({
-      name: namespace,
+    this.namespace = "mesh.local";
+    this.cluster.addDefaultCloudMapNamespace({
+      name: this.namespace,
     });
 
     // IAM role for the color app tasks
-    const taskRole = new Role(this, 'demorole', {
+    this.taskRole = new Role(this, 'DemoTaskRole', {
       assumedBy: new ServicePrincipal('ecs-tasks.amazonaws.com'),
       managedPolicies: [
         ManagedPolicy.fromAwsManagedPolicyName('CloudWatchLogsFullAccess'),
         ManagedPolicy.fromAwsManagedPolicyName('AWSXRayDaemonWriteAccess'),
-        ManagedPolicy.fromAwsManagedPolicyName('AmazonEC2ContainerRegistryReadOnly'),
       ]
     });
 
-    // ========================================================================
-    // gateway and public alb
-    // ========================================================================
-
-    const gatewayTaskDef = new FargateTaskDefinition(this, 'gatewaytaskdef', {
-      taskRole: taskRole,
+    // IAM task execution role for the color app tasks to be able to pull images from ECR
+    this.taskExecutionRole = new Role(this, 'demoTaskExecutionRole', {
+      assumedBy: new ServicePrincipal('ecs-tasks.amazonaws.com'),
+      managedPolicies: [
+        ManagedPolicy.fromAwsManagedPolicyName('AmazonEC2ContainerRegistryReadOnly'),
+      ]
+    });
+  }
+  createGateway() {
+    let gatewayTaskDef = new FargateTaskDefinition(this, 'GatewayTaskDef', {
+      taskRole: this.taskRole,
+      executionRole: this.taskExecutionRole,
       cpu: 512,
       memoryLimitMiB: 1024,
     });
 
     //repositoryarn: '226767807331.dkr.ecr.us-west-2.amazonaws.com/gateway:latest',
-    const gatewayContainer = gatewayTaskDef.addContainer('app', {
-      image: ContainerImage.fromRegistry(`subfuzion/colorgateway:${APP_TAG}`),
+    let gatewayContainer = gatewayTaskDef.addContainer('app', {
+      image: ContainerImage.fromRegistry(`subfuzion/colorgateway:${this.APP_TAG}`),
       environment: {
-        SERVER_PORT: `${APP_PORT}`,
-        COLOR_TELLER_ENDPOINT: `colorteller.${namespace}:${APP_PORT}`,
+        SERVER_PORT: `${this.APP_PORT}`,
+        COLOR_TELLER_ENDPOINT: `colorteller.${this.namespace}:${this.APP_PORT}`,
       },
       logging: new AwsLogDriver({
         streamPrefix: 'app',
       }),
     });
     gatewayContainer.addPortMappings({
-      containerPort: APP_PORT,
+      containerPort: this.APP_PORT,
     })
 
-    const gatewayService = new FargateService(this, 'gatewayservice', {
-      cluster: cluster,
+    let gatewayService = new FargateService(this, 'GatewayService', {
+      cluster: this.cluster,
       serviceName: 'gateway',
       taskDefinition: gatewayTaskDef,
       desiredCount: 1,
-      securityGroup: internalSecurityGroup,
+      securityGroup: this.internalSecurityGroup,
       cloudMapOptions: {
         name: 'gateway',
       },
     });
 
-    const healthCheck: HealthCheck = {
+    let healthCheck: HealthCheck = {
       "path": '/ping',
       "port": 'traffic-port',
       "interval": Duration.seconds(30),
@@ -127,12 +143,12 @@ export class MeshDemoStack extends Stack {
       "healthyHttpCodes": "200-499",
     };
 
-    const alb = new ApplicationLoadBalancer(this, 'demoalb', {
-      vpc: vpc,
+    let alb = new ApplicationLoadBalancer(this, 'DemoALB', {
+      vpc: this.vpc,
       internetFacing: true,
-      securityGroup: externalSecurityGroup,
+      securityGroup: this.externalSecurityGroup,
     });
-    const albListener = alb.addListener('web', {
+    let albListener = alb.addListener('web', {
       port: 80,
     });
     albListener.addTargets('demotarget', {
@@ -140,78 +156,44 @@ export class MeshDemoStack extends Stack {
       targets: [ gatewayService ],
       healthCheck: healthCheck,
     });
+  }
 
-    // ========================================================================
-    // blue colorteller
-    // ========================================================================
+  createColorTeller(...colors: string[]) {
+    colors.forEach(color => {
+      let taskDef = new FargateTaskDefinition(this, `${color}_taskdef`, {
+        taskRole: this.taskRole,
+        executionRole: this.taskExecutionRole,
+        cpu: 512,
+        memoryLimitMiB: 1024,
+      });
 
-    const colortellerTaskDef = new FargateTaskDefinition(this, 'colortellertaskdef', {
-      taskRole: taskRole,
-      cpu: 512,
-      memoryLimitMiB: 1024,
-    });
+      let container = taskDef.addContainer('app', {
+        image: ContainerImage.fromRegistry(`subfuzion/colorteller:${this.APP_TAG}`),
+        environment: {
+          SERVER_PORT: `${this.APP_PORT}`,
+          COLOR: color,
+        },
+        logging: new AwsLogDriver({
+          streamPrefix: 'app',
+        }),
+      });
+      container.addPortMappings({
+        containerPort: this.APP_PORT,
+      })
 
-    const colortellerContainer = colortellerTaskDef.addContainer('app', {
-      image: ContainerImage.fromRegistry(`subfuzion/colorteller:${APP_TAG}`),
-      environment: {
-        SERVER_PORT: `${APP_PORT}`,
-        COLOR: 'blue',
-      },
-      logging: new AwsLogDriver({
-        streamPrefix: 'app',
-      }),
-    });
-    colortellerContainer.addPortMappings({
-      containerPort: APP_PORT,
-    })
-
-    const colortellerService = new FargateService(this, 'colortellerservice', {
-      cluster: cluster,
-      serviceName: 'colorteller',
-      taskDefinition: colortellerTaskDef,
-      desiredCount: 1,
-      securityGroup: internalSecurityGroup,
-      cloudMapOptions: {
-        name: 'colorteller',
-        dnsTtl: Duration.minutes(1)
-      },
-    });
-
-    // ========================================================================
-    // green colorteller
-    // ========================================================================
-
-    const greenColorTellerTaskDef = new FargateTaskDefinition(this, 'GreenColorTellerTaskdef', {
-      taskRole: taskRole,
-      cpu: 512,
-      memoryLimitMiB: 1024,
-    });
-
-    const greenColorTellerContainer = greenColorTellerTaskDef.addContainer('app', {
-      image: ContainerImage.fromRegistry(`subfuzion/colorteller:${APP_TAG}`),
-      environment: {
-        SERVER_PORT: `${APP_PORT}`,
-        COLOR: 'green',
-      },
-      logging: new AwsLogDriver({
-        streamPrefix: 'app',
-      }),
-    });
-    greenColorTellerContainer.addPortMappings({
-      containerPort: APP_PORT,
-    })
-
-    const greenColorTellerService = new FargateService(this, 'GreenColorTellerService', {
-      cluster: cluster,
-      serviceName: 'greencolorteller',
-      taskDefinition: greenColorTellerTaskDef,
-      desiredCount: 1,
-      securityGroup: internalSecurityGroup,
-      cloudMapOptions: {
-        name: 'greencolorteller',
-        dnsTtl: Duration.minutes(1)
-      },
+      let service = new FargateService(this, `ColorTellerService-${color}`, {
+        cluster: this.cluster,
+        serviceName: 'colorteller-${color}',
+        taskDefinition: taskDef,
+        desiredCount: 1,
+        securityGroup: this.internalSecurityGroup,
+        cloudMapOptions: {
+          name: `colorteller-${color}`,
+          dnsTtl: Duration.minutes(1)
+        },
+      });
     });
 
   }
+
 }
