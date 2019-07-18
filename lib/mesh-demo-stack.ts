@@ -9,6 +9,11 @@ export class MeshDemoStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
 
+    const APP_PORT = 8080;
+    const APP_TAG = 'v1';
+
+    // ========================================================================
+    // vpc
     // ========================================================================
 
     // Deploy a VPC
@@ -45,10 +50,12 @@ export class MeshDemoStack extends Stack {
       vpc: vpc,
       allowAllOutbound: true,
     });
-    [ Port.tcp(8080), Port.tcp(9901), Port.tcp(15000) ].forEach(port => {
+    [ Port.tcp(APP_PORT), Port.tcp(9901), Port.tcp(15000) ].forEach(port => {
       internalSecurityGroup.connections.allowInternally(port);
     });
 
+    // ========================================================================
+    // cluster
     // ========================================================================
 
     // Deploy a Fargate cluster on ECS
@@ -74,6 +81,10 @@ export class MeshDemoStack extends Stack {
       ]
     });
 
+    // ========================================================================
+    // gateway and public alb
+    // ========================================================================
+
     const gatewayTaskDef = new FargateTaskDefinition(this, 'gatewaytaskdef', {
       taskRole: taskRole,
       cpu: 512,
@@ -82,24 +93,24 @@ export class MeshDemoStack extends Stack {
 
     //repositoryarn: '226767807331.dkr.ecr.us-west-2.amazonaws.com/gateway:latest',
     const gatewayContainer = gatewayTaskDef.addContainer('gatewaycontainer', {
-      image: ContainerImage.fromRegistry('subfuzion/colorgateway:latest'),
+      image: ContainerImage.fromRegistry(`subfuzion/colorgateway:${APP_TAG}`),
       environment: {
-        SERVER_PORT: '8080',
-        COLOR_TELLER_ENDPOINT: `colorteller.${namespace}:8080`,
+        SERVER_PORT: `${APP_PORT}`,
+        COLOR_TELLER_ENDPOINT: `colorteller.${namespace}:${APP_PORT}`,
       },
       logging: new AwsLogDriver({
         streamPrefix: 'app',
       }),
     });
     gatewayContainer.addPortMappings({
-      containerPort: 8080,
+      containerPort: APP_PORT,
     })
 
     const gatewayService = new FargateService(this, 'gatewayservice', {
       cluster: cluster,
+      serviceName: 'gateway',
       taskDefinition: gatewayTaskDef,
       desiredCount: 1,
-      serviceName: 'gateway',
       securityGroup: internalSecurityGroup,
       cloudMapOptions: {
         name: 'gateway',
@@ -130,6 +141,40 @@ export class MeshDemoStack extends Stack {
       healthCheck: healthCheck,
     });
 
+    // ========================================================================
+    // colorteller
+    // ========================================================================
+
+    const colortellerTaskDef = new FargateTaskDefinition(this, 'colortellertaskdef', {
+      taskRole: taskRole,
+      cpu: 512,
+      memoryLimitMiB: 1024,
+    });
+
+    const colortellerContainer = colortellerTaskDef.addContainer('colortellercontainer', {
+      image: ContainerImage.fromRegistry(`subfuzion/colorteller:${APP_TAG}`),
+      environment: {
+        SERVER_PORT: `${APP_PORT}`,
+        COLOR: 'blue',
+      },
+      logging: new AwsLogDriver({
+        streamPrefix: 'app',
+      }),
+    });
+    colortellerContainer.addPortMappings({
+      containerPort: APP_PORT,
+    })
+
+    const colortellerService = new FargateService(this, 'colortellerservice', {
+      cluster: cluster,
+      serviceName: 'colorteller',
+      taskDefinition: colortellerTaskDef,
+      desiredCount: 1,
+      securityGroup: internalSecurityGroup,
+      cloudMapOptions: {
+        name: 'colorteller',
+      },
+    });
 
   }
 }
