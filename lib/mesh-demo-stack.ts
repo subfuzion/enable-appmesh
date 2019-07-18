@@ -99,6 +99,7 @@ export class MeshDemoStack extends Stack {
       ]
     });
   }
+
   createGateway() {
     let gatewayTaskDef = new FargateTaskDefinition(this, 'GatewayTaskDef', {
       taskRole: this.taskRole,
@@ -183,7 +184,7 @@ export class MeshDemoStack extends Stack {
 
       let service = new FargateService(this, `ColorTellerService-${color}`, {
         cluster: this.cluster,
-        serviceName: 'colorteller-${color}',
+        serviceName: `colorteller-${color}`,
         taskDefinition: taskDef,
         desiredCount: 1,
         securityGroup: this.internalSecurityGroup,
