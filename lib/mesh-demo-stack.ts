@@ -4,6 +4,7 @@ import {AwsLogDriver, Cluster, ContainerImage, FargateService, FargateTaskDefini
 import {Effect, ManagedPolicy, PolicyDocument, PolicyStatement, Role, ServicePrincipal} from '@aws-cdk/aws-iam';
 import {ApplicationLoadBalancer, HealthCheck} from "@aws-cdk/aws-elasticloadbalancingv2";
 import {LoadBalancedFargateService, LoadBalancerType} from "@aws-cdk/aws-ecs-patterns";
+import { Service } from "@aws-cdk/aws-servicediscovery";
 
 export class MeshDemoStack extends Stack {
 
@@ -78,8 +79,17 @@ export class MeshDemoStack extends Stack {
     // relies on either ECS Service Discovery or App Mesh integration
     // (default: cloudmap.NamespaceType.DNS_PRIVATE)
     this.namespace = "mesh.local";
-    this.cluster.addDefaultCloudMapNamespace({
+    let ns = this.cluster.addDefaultCloudMapNamespace({
       name: this.namespace,
+    });
+    // we need to ensure the service record is created for after we enable app mesh
+    // (there is no resource we create here that will make this happen implicitly
+    // since CDK won't all two services to register the same service name in
+    // Cloud Map, even though we can discriminate between them using service attributes
+    // based on ECS_TASK_DEFINITION_FAMILY
+    let serviceName = new Service(this, 'colorteller', {
+      namespace: ns,
+      dnsTtl: Duration.minutes(10),
     });
 
     // IAM role for the color app tasks
@@ -159,8 +169,8 @@ export class MeshDemoStack extends Stack {
     });
   }
 
-  createColorTeller(...colors: string[]) {
-    colors.forEach(color => {
+  createColorTeller(initialColor: string, ...otherColors: string[]) {
+    let create = (color: string, serviceName: string) => {
       let taskDef = new FargateTaskDefinition(this, `${color}_taskdef`, {
         taskRole: this.taskRole,
         executionRole: this.taskExecutionRole,
@@ -184,15 +194,27 @@ export class MeshDemoStack extends Stack {
 
       let service = new FargateService(this, `ColorTellerService-${color}`, {
         cluster: this.cluster,
-        serviceName: `colorteller-${color}`,
+        serviceName: serviceName,
         taskDefinition: taskDef,
         desiredCount: 1,
         securityGroup: this.internalSecurityGroup,
         cloudMapOptions: {
-          name: `colorteller-${color}`,
+          name: serviceName,
           dnsTtl: Duration.minutes(1)
         },
       });
+    };
+
+
+    // initial color is a special case; before we enable app mesh, gateway
+    // needs to reference an actual colorteller.mesh.local service (COLOR_TELLER_ENDPOINT);
+    // the other colors need a unique namespace for now because CDK won't
+    // allow reusing the same service name (although we can do this without
+    // CDK; this is supported by Cloud Map / App Mesh, which uses Cloud
+    // Map attributes for ECS service discovery: ECS_TASK_DEFINITION_FAMILY
+    create(initialColor, 'colorteller');
+    otherColors.forEach(color => {
+      create(color, `colorteller-${color}`);
     });
 
   }
