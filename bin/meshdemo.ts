@@ -6,4 +6,4 @@ import { MeshDemoStack } from '../lib/mesh-demo-stack';
 
 const app = new cdk.App();
 new MeshDemoStack(app, 'demo');
-app.synth();
+

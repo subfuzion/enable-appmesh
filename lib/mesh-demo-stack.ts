@@ -29,7 +29,7 @@ export class MeshDemoStack extends Stack {
   // - "226767807331.dkr.ecr.us-west-2.amazonaws.com/colorteller:latest"
   // - "subfuzion/colorteller:v2"
   // - your own image on Docker Hub or ECR for your own account
-  readonly ColorTellerImage = "subfuzion/colorgateway:v2";
+  readonly ColorTellerImage = "subfuzion/colorteller:v2";
 
   // Gateway and ColorTeller server port
   readonly APP_PORT = 8080;
@@ -358,8 +358,8 @@ export class MeshDemoStack extends Stack {
   }
 
   createRoute(router: CfnVirtualRouter) {
-    let route = new CfnRoute(this, "ColorTellerRoute", {
-      routeName: "colorteller-route",
+    let route = new CfnRoute(this, "ColorRoute", {
+      routeName: "color-route",
       meshName: this.mesh.meshName,
       virtualRouterName: router.virtualRouterName,
       spec: {
