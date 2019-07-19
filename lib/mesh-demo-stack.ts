@@ -271,7 +271,7 @@ export class MeshDemoStack extends Stack {
 
   createMesh() {
     this.mesh = new CfnMesh(this, "DemoMesh", {
-      meshName: "demomesh",
+      meshName: "mesh",
     });
 
     this.createVirtualNodes();
@@ -281,14 +281,16 @@ export class MeshDemoStack extends Stack {
   }
 
   createVirtualNodes() {
-    this.colors.forEach(color => {
+    let create = (name: string, serviceName?: string) => {
+      serviceName = serviceName || name;
+
       // WARNING: keep name in sync with the route spec, if using this node in a route
       // WARNING: keep name in sync with the virtual service, if using this node as a provider
       // update the route spec as well in createRoute()
-      let name = `${color}-vn`;
+      let vn = `${name}-vn`;
       new CfnVirtualNode(this, `Demo-${name}`, {
         meshName: this.mesh.meshName,
-        virtualNodeName: name,
+        virtualNodeName: vn,
         spec: {
           listeners: [{
             portMapping: {
@@ -298,12 +300,23 @@ export class MeshDemoStack extends Stack {
           }],
           serviceDiscovery: {
             dns: {
-              // special case for the default color
-              hostname: name.startsWith(this.colors[0]) ? "colorteller" : name,
+              hostname: serviceName,
             },
           },
         },
       }).addDependsOn(this.mesh);
+    };
+
+    // creates: gateway-vn => gateway.mesh.local
+    create("gateway");
+
+    // creates: blue-vn => colorteller.mesh.local
+    // special case: first color is the default color used for colorteller.mesh.local
+    create(this.colors[0], "colorteller");
+
+    // creates: green-vn => colorteller-green.mesh.local
+    this.colors.slice(1).forEach(color => {
+      create(color, `colorteller-${color}`);
     });
   }
 
