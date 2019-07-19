@@ -1,4 +1,4 @@
 # Getting Started
 
-Node.js and CDK
+Node.js and CDK.
 
