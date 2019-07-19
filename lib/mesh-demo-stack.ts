@@ -64,7 +64,6 @@ export class MeshDemoStack extends Stack {
     this.stackName = props && props.stackName ? props.stackName : "demo";
 
     this.createLogGroup();
-
     this.createVpc();
     this.createCluster();
     this.createGateway();
