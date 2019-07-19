@@ -6,7 +6,16 @@ import {ManagedPolicy, Role, ServicePrincipal} from "@aws-cdk/aws-iam";
 import {LogGroup, RetentionDays} from "@aws-cdk/aws-logs";
 import {CfnOutput, Construct, Duration, RemovalPolicy, Stack, StackProps} from "@aws-cdk/core";
 
+/**
+ * Deploys the resources necessary to demo the Color App *before* and *after* enabling App Mesh.
+ * This stack deploys
+ * - a vpc with private subnets in 2 AZs, and a public ALB
+ * - the Color App (a gateway and two colorteller (blue & green) services)
+ * - an App Mesh mesh (ready to go for mesh-enabling the app)
+ */
 export class MeshDemoStack extends Stack {
+
+  stackName: string;
 
   // gateway and colorteller listen on 8080 by default, just being explicit
   readonly APP_PORT = 8080;
@@ -15,7 +24,7 @@ export class MeshDemoStack extends Stack {
   readonly DEF_TTL = Duration.seconds(10);
 
   // use the same tag for gateway and colorteller images
-  readonly IMAGE_TAG = "latest";
+  readonly IMAGE_TAG = "v2";
 
   // cloudwatch and xray permissions
   taskRole: Role;
@@ -36,16 +45,6 @@ export class MeshDemoStack extends Stack {
   // 'demo' group; one day retention; destroy with stack
   logGroup: LogGroup;
 
-  healthCheck: HealthCheck = {
-    "path": "/ping",
-    "port": `${this.APP_PORT}`, //"traffic-port",
-    "interval": Duration.seconds(30),
-    "timeout": Duration.seconds(5),
-    "healthyThresholdCount": 2,
-    "unhealthyThresholdCount": 2,
-    "healthyHttpCodes": "200-499",
-  };
-
   // create colortellers, service names in Cloud Map, and corresponding virtual nodes for these colors
   // the first color is treated as a default color: it's service name will be "colorteller"
   // due to a limitation with the current version of CDK, subsequent color services will be
@@ -65,6 +64,9 @@ export class MeshDemoStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
 
+    // store for convenience
+    this.stackName = props && props.stackName ? props.stackName : "demo";
+
     this.createLogGroup();
 
     this.createVpc();
@@ -76,7 +78,7 @@ export class MeshDemoStack extends Stack {
 
   createLogGroup() {
     this.logGroup = new LogGroup(this, "LogGroup", {
-      logGroupName: "demo",
+      logGroupName: this.stackName,
       retention: RetentionDays.ONE_DAY,
       removalPolicy: RemovalPolicy.DESTROY,
     });
@@ -84,7 +86,7 @@ export class MeshDemoStack extends Stack {
 
   createVpc() {
     // The VPC will have 2 AZs, 2 NAT gateways, and an internet gateway
-    this.vpc = new Vpc(this, "demoVPC", {
+    this.vpc = new Vpc(this, "VPC", {
       cidr: "10.0.0.0/16",
       maxAzs: 2,
       subnetConfiguration: [
@@ -102,7 +104,7 @@ export class MeshDemoStack extends Stack {
     });
 
     // Allow inbound web traffic on port 80
-    this.externalSecurityGroup = new SecurityGroup(this, "DemoExternalSG", {
+    this.externalSecurityGroup = new SecurityGroup(this, "ExternalSG", {
       vpc: this.vpc,
       allowAllOutbound: true,
     });
@@ -112,7 +114,7 @@ export class MeshDemoStack extends Stack {
     // - 8080: default app port for gateway and colorteller
     // - 9901: envoy admin interface, used for health check
     // - 15000: envoy ingress ports (egress over 15001 will be allowed by allowAllOutbound)
-    this.internalSecurityGroup = new SecurityGroup(this, "DemoInternalSG", {
+    this.internalSecurityGroup = new SecurityGroup(this, "InternalSG", {
       vpc: this.vpc,
       allowAllOutbound: true,
     });
@@ -123,7 +125,7 @@ export class MeshDemoStack extends Stack {
 
   createCluster() {
     // Deploy a Fargate cluster on ECS
-    this.cluster = new Cluster(this, "DemoCluster", {
+    this.cluster = new Cluster(this, "Cluster", {
       vpc: this.vpc,
     });
 
@@ -145,7 +147,7 @@ export class MeshDemoStack extends Stack {
     // });
 
     // IAM role for the color app tasks
-    this.taskRole = new Role(this, "DemoTaskRole", {
+    this.taskRole = new Role(this, "TaskRole", {
       assumedBy: new ServicePrincipal("ecs-tasks.amazonaws.com"),
       managedPolicies: [
         ManagedPolicy.fromAwsManagedPolicyName("CloudWatchLogsFullAccess"),
@@ -163,7 +165,7 @@ export class MeshDemoStack extends Stack {
   }
 
   createGateway() {
-    let gatewayTaskDef = new FargateTaskDefinition(this, "GatewayTaskDef-v2", {
+    let gatewayTaskDef = new FargateTaskDefinition(this, "GatewayTaskDef", {
       taskRole: this.taskRole,
       executionRole: this.taskExecutionRole,
       cpu: 512,
@@ -188,7 +190,7 @@ export class MeshDemoStack extends Stack {
       containerPort: this.APP_PORT,
     });
 
-    let gatewayService = new FargateService(this, "GatewayService-v2", {
+    let gatewayService = new FargateService(this, "GatewayService", {
       cluster: this.cluster,
       serviceName: "gateway",
       taskDefinition: gatewayTaskDef,
@@ -199,7 +201,7 @@ export class MeshDemoStack extends Stack {
       },
     });
 
-    let alb = new ApplicationLoadBalancer(this, "DemoALB", {
+    let alb = new ApplicationLoadBalancer(this, "PublicALB", {
       vpc: this.vpc,
       internetFacing: true,
       securityGroup: this.externalSecurityGroup,
@@ -210,9 +212,18 @@ export class MeshDemoStack extends Stack {
     albListener.addTargets("demotarget", {
       port: 80,
       targets: [gatewayService],
-      healthCheck: this.healthCheck,
+      healthCheck: {
+        path: "/ping",
+        port: "traffic-port",
+        interval: Duration.seconds(10),
+        timeout: Duration.seconds(5),
+        "healthyHttpCodes": "200-499",
+        healthyThresholdCount: 2,
+        unhealthyThresholdCount: 2,
+      },
     });
-    new CfnOutput(this, "alburl", {
+    // CDK will print after finished deploying stack
+    new CfnOutput(this, "URL", {
       description: "Color App public URL",
       value: alb.loadBalancerDnsName,
     });
@@ -244,7 +255,7 @@ export class MeshDemoStack extends Stack {
         containerPort: this.APP_PORT,
       });
 
-      let service = new FargateService(this, `DemoColorTellerService-${color}-v2`, {
+      let service = new FargateService(this, `ColorTellerService-${color}`, {
         cluster: this.cluster,
         serviceName: serviceName,
         taskDefinition: taskDef,
@@ -264,14 +275,14 @@ export class MeshDemoStack extends Stack {
     // CDK; this is supported by Cloud Map / App Mesh, which uses Cloud
     // Map attributes for ECS service discovery: ECS_TASK_DEFINITION_FAMILY
     create(colors[0], "colorteller");
-    colors.forEach(color => {
-      create(color.slice(1), `colorteller-${color}`);
+    colors.slice(1).forEach(color => {
+      create(color, `colorteller-${color}`);
     });
   }
 
   createMesh() {
-    this.mesh = new CfnMesh(this, "DemoMesh", {
-      meshName: "mesh",
+    this.mesh = new CfnMesh(this, `${this.stackName}-mesh`, {
+      meshName: `${this.stackName}-mesh`,
     });
 
     this.createVirtualNodes();
@@ -297,6 +308,15 @@ export class MeshDemoStack extends Stack {
               protocol: "http",
               port: this.APP_PORT,
             },
+            healthCheck: {
+              healthyThreshold: 2,
+              intervalMillis: 10 * 1000,
+              path: "/ping",
+              port: this.APP_PORT,
+              protocol: "http",
+              timeoutMillis: 5 * 1000,
+              unhealthyThreshold: 2,
+            },
           }],
           serviceDiscovery: {
             dns: {
@@ -310,18 +330,18 @@ export class MeshDemoStack extends Stack {
     // creates: gateway-vn => gateway.mesh.local
     create("gateway");
 
-    // creates: blue-vn => colorteller.mesh.local
+    // for the first color, creates: {color}-vn => colorteller.mesh.local
     // special case: first color is the default color used for colorteller.mesh.local
     create(this.colors[0], "colorteller");
 
-    // creates: green-vn => colorteller-green.mesh.local
+    // for all the colors except the first one, creates: {color}-vn => colorteller-{color}.mesh.local
     this.colors.slice(1).forEach(color => {
       create(color, `colorteller-${color}`);
     });
   }
 
   createVirtualRouter(): CfnVirtualRouter {
-    let router = new CfnVirtualRouter(this, "DemoColorTellerVirtualRouter", {
+    let router = new CfnVirtualRouter(this, "ColorTellerVirtualRouter", {
       // WARNING: keep in sync with virtual service provider if using this
       virtualRouterName: "colorteller-vr",
       meshName: this.mesh.meshName,
@@ -339,7 +359,7 @@ export class MeshDemoStack extends Stack {
   }
 
   createRoute(router: CfnVirtualRouter) {
-    let route = new CfnRoute(this, "DemoColorTellerRoute", {
+    let route = new CfnRoute(this, "ColorTellerRoute", {
       routeName: "colorteller-route",
       meshName: this.mesh.meshName,
       virtualRouterName: router.virtualRouterName,
