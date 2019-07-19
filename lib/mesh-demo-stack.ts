@@ -153,7 +153,7 @@ export class MeshDemoStack extends Stack {
     });
 
     // grant ECR pull permission to IAM task execution role for ECS agent
-    this.taskExecutionRole = new Role(this, "demoTaskExecutionRole", {
+    this.taskExecutionRole = new Role(this, "TaskExecutionRole", {
       assumedBy: new ServicePrincipal("ecs-tasks.amazonaws.com"),
       managedPolicies: [
         ManagedPolicy.fromAwsManagedPolicyName("AmazonEC2ContainerRegistryReadOnly"),
@@ -204,7 +204,7 @@ export class MeshDemoStack extends Stack {
     let albListener = alb.addListener("web", {
       port: 80,
     });
-    albListener.addTargets("demotarget", {
+    albListener.addTargets("Target", {
       port: 80,
       targets: [gatewayService],
       healthCheck: {
@@ -275,8 +275,9 @@ export class MeshDemoStack extends Stack {
   }
 
   createMesh() {
-    this.mesh = new CfnMesh(this, `${this.stackName}-mesh`, {
-      meshName: `${this.stackName}-mesh`,
+    this.mesh = new CfnMesh(this, "Mesh", {
+      // use the same name to make it easy to identify the stack it's associated with
+      meshName: this.stackName,
     });
 
     this.createVirtualNodes();
