@@ -16,10 +16,10 @@
     "cdk": "cdk"
   },
   "devDependencies": {
-    "@types/node": "8.10.45",
-    "typescript": "^3.3.3333",
+    "@types/node": "^8.10.45",
+    "aws-cdk": "^1.0.0",
     "ts-node": "^8.1.0",
-    "aws-cdk": "^1.0.0"
+    "typescript": "^3.3.3333"
   },
   "dependencies": {
     "@aws-cdk/aws-appmesh": "^1.0.0",

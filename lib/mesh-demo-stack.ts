@@ -1,7 +1,7 @@
 import {CfnMesh, CfnRoute, CfnVirtualNode, CfnVirtualRouter, CfnVirtualService} from "@aws-cdk/aws-appmesh";
 import {Port, SecurityGroup, SubnetType, Vpc} from "@aws-cdk/aws-ec2";
 import {Cluster, ContainerImage, FargateService, FargateTaskDefinition, LogDriver} from "@aws-cdk/aws-ecs";
-import {ApplicationLoadBalancer, HealthCheck} from "@aws-cdk/aws-elasticloadbalancingv2";
+import {ApplicationLoadBalancer} from "@aws-cdk/aws-elasticloadbalancingv2";
 import {ManagedPolicy, Role, ServicePrincipal} from "@aws-cdk/aws-iam";
 import {LogGroup, RetentionDays} from "@aws-cdk/aws-logs";
 import {CfnOutput, Construct, Duration, RemovalPolicy, Stack, StackProps} from "@aws-cdk/core";
@@ -15,51 +15,47 @@ import {CfnOutput, Construct, Duration, RemovalPolicy, Stack, StackProps} from "
  */
 export class MeshDemoStack extends Stack {
 
-  stackName: string;
+  // Demo customization
+  //
+  // Gateway
+  // You can use either either of these:
+  // - "226767807331.dkr.ecr.us-west-2.amazonaws.com/gateway:latest"
+  // - "subfuzion/colorgateway:v2"
+  // - your own image on Docker Hub or ECR for your own account
+  readonly GatewayImage = "subfuzion/colorgateway:v2";
 
-  // gateway and colorteller listen on 8080 by default, just being explicit
+  // ColorTeller
+  // You can use either either of these:
+  // - "226767807331.dkr.ecr.us-west-2.amazonaws.com/colorteller:latest"
+  // - "subfuzion/colorteller:v2"
+  // - your own image on Docker Hub or ECR for your own account
+  readonly ColorTellerImage = "subfuzion/colorgateway:v2";
+
+  // Gateway and ColorTeller server port
   readonly APP_PORT = 8080;
 
-  // want short ttl while testing
+  // ColorTeller services to run
+  readonly colors = ["blue", "green"];
+
+  // service domain / namespace
+  readonly namespace: string = "mesh.local";
+
+  // might want to experiment with different ttl during testing
   readonly DEF_TTL = Duration.seconds(10);
+  //
+  // end: Demo customization
 
-  // use the same tag for gateway and colorteller images
-  readonly IMAGE_TAG = "v2";
 
-  // cloudwatch and xray permissions
+  stackName: string;
   taskRole: Role;
-
-  // ecr pull image permission
   taskExecutionRole: Role;
-
   vpc: Vpc;
   cluster: Cluster;
-  namespace: string = "mesh.local";
-
-  // inbound 8080, 9901, 15000; all outbound
   internalSecurityGroup: SecurityGroup;
-
-  // inbound 80; all outbound
   externalSecurityGroup: SecurityGroup;
-
-  // 'demo' group; one day retention; destroy with stack
   logGroup: LogGroup;
-
-  // create colortellers, service names in Cloud Map, and corresponding virtual nodes for these colors
-  // the first color is treated as a default color: it's service name will be "colorteller"
-  // due to a limitation with the current version of CDK, subsequent color services will be
-  // named like "colorteller-green," etc.
-  colors = ["blue", "green"];
-
   mesh: CfnMesh;
 
-  // TODO - this is just a placeholder since current CDK API doesn't support Cloud Map attributes yet
-  // Need to know task family when creating virtual nodes that use
-  // ECS_TASK_DEFINITION_FAMILY attribute. The attribute allows filtering
-  // service name IPs in Cloud Map by task family when ECS registers a new task.
-  // App Mesh virtual nodes use this to distinguish which node to route traffic to.
-  // All super cool and clever and unfortunately not supported by CDK quite yet!
-  taskFamily = new Map<string, string>();
 
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
@@ -103,7 +99,7 @@ export class MeshDemoStack extends Stack {
       ],
     });
 
-    // Allow inbound web traffic on port 80
+    // Allow public inbound web traffic on port 80
     this.externalSecurityGroup = new SecurityGroup(this, "ExternalSG", {
       vpc: this.vpc,
       allowAllOutbound: true,
@@ -111,6 +107,7 @@ export class MeshDemoStack extends Stack {
     this.externalSecurityGroup.connections.allowFromAnyIpv4(Port.tcp(80));
 
     // Allow communication within the vpc for the app and envoy containers
+    // inbound 8080, 9901, 15000; all outbound
     // - 8080: default app port for gateway and colorteller
     // - 9901: envoy admin interface, used for health check
     // - 15000: envoy ingress ports (egress over 15001 will be allowed by allowAllOutbound)
@@ -146,7 +143,7 @@ export class MeshDemoStack extends Stack {
     //   dnsTtl: this.DEF_TTL,
     // });
 
-    // IAM role for the color app tasks
+    // grant cloudwatch and xray permissions to IAM task role for color app tasks
     this.taskRole = new Role(this, "TaskRole", {
       assumedBy: new ServicePrincipal("ecs-tasks.amazonaws.com"),
       managedPolicies: [
@@ -155,7 +152,7 @@ export class MeshDemoStack extends Stack {
       ],
     });
 
-    // IAM task execution role for the color app tasks to be able to pull images from ECR
+    // grant ECR pull permission to IAM task execution role for ECS agent
     this.taskExecutionRole = new Role(this, "demoTaskExecutionRole", {
       assumedBy: new ServicePrincipal("ecs-tasks.amazonaws.com"),
       managedPolicies: [
@@ -166,17 +163,15 @@ export class MeshDemoStack extends Stack {
 
   createGateway() {
     let gatewayTaskDef = new FargateTaskDefinition(this, "GatewayTaskDef", {
+      family: "gateway",
       taskRole: this.taskRole,
       executionRole: this.taskExecutionRole,
       cpu: 512,
       memoryLimitMiB: 1024,
     });
-    // stash this for virtual node spec later
-    this.taskFamily.set("gateway", gatewayTaskDef.family);
 
-    //repositoryarn: '226767807331.dkr.ecr.us-west-2.amazonaws.com/gateway:latest',
     let gatewayContainer = gatewayTaskDef.addContainer("app", {
-      image: ContainerImage.fromRegistry(`subfuzion/colorgateway:${this.IMAGE_TAG}`),
+      image: ContainerImage.fromRegistry(this.GatewayImage),
       environment: {
         SERVER_PORT: `${this.APP_PORT}`,
         COLOR_TELLER_ENDPOINT: `colorteller.${this.namespace}:${this.APP_PORT}`,
@@ -232,16 +227,15 @@ export class MeshDemoStack extends Stack {
   createColorTeller(...colors: string[]) {
     let create = (color: string, serviceName: string) => {
       let taskDef = new FargateTaskDefinition(this, `${color}_taskdef-v2`, {
+        family: color,
         taskRole: this.taskRole,
         executionRole: this.taskExecutionRole,
         cpu: 512,
         memoryLimitMiB: 1024,
       });
-      // stash this for virtual node spec later
-      this.taskFamily.set(color, taskDef.family);
 
       let container = taskDef.addContainer("app", {
-        image: ContainerImage.fromRegistry(`subfuzion/colorteller:${this.IMAGE_TAG}`),
+        image: ContainerImage.fromRegistry(this.ColorTellerImage),
         environment: {
           SERVER_PORT: `${this.APP_PORT}`,
           COLOR: color,
@@ -298,11 +292,16 @@ export class MeshDemoStack extends Stack {
       // WARNING: keep name in sync with the route spec, if using this node in a route
       // WARNING: keep name in sync with the virtual service, if using this node as a provider
       // update the route spec as well in createRoute()
-      let vn = `${name}-vn`;
-      new CfnVirtualNode(this, `Demo-${name}`, {
+      let nodeName = `${name}-vn`;
+      (new CfnVirtualNode(this, nodeName, {
         meshName: this.mesh.meshName,
-        virtualNodeName: vn,
+        virtualNodeName: nodeName,
         spec: {
+          serviceDiscovery: {
+            dns: {
+              hostname: serviceName,
+            },
+          },
           listeners: [{
             portMapping: {
               protocol: "http",
@@ -318,13 +317,13 @@ export class MeshDemoStack extends Stack {
               unhealthyThreshold: 2,
             },
           }],
-          serviceDiscovery: {
-            dns: {
-              hostname: serviceName,
-            },
-          },
+          backends: [{
+            virtualService: {
+              virtualServiceName: `colorteller.${this.namespace}`,
+            }
+          }],
         },
-      }).addDependsOn(this.mesh);
+      })).addDependsOn(this.mesh);
     };
 
     // creates: gateway-vn => gateway.mesh.local
@@ -397,3 +396,4 @@ export class MeshDemoStack extends Stack {
   }
 
 }
+
