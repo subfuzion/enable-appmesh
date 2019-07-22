@@ -247,7 +247,7 @@ This is different model from either the programming model or the physical infras
   
 \(1\) A virtual node represents the set of all healthy task replicas associated with a specific version of deployed code that has an Envoy proxy sidecar associated with. In this case, the gateway virtual node specification provides information about its communication requirements that App Mesh will ensure is applied to each running task replica of the gateway service in the mesh.  
   
-The code for gateway sends requests to a backend associated with a service name \(in this case, the service name it is configured to use is a DNS hostname **colorteller.mesh.local.**The actual endpoint that the gateway service will use is **colorteller.mesh.local:8080**, because 8080 is the port that we chose for internal communication\). The virtual node configuration for **gateway**specifies that **colorteller.mesh.local**is a backend.  
+The code for gateway sends requests to a backend associated with a service name \(in this case, the service name it is configured to use is a DNS hostname **colorteller.mesh.local.**The actual endpoint that the gateway service will use is **colorteller.mesh.local:8080**, because 8080 is the port that we chose for internal communication\). The virtual node configuration for **gateway** specifies that **colorteller.mesh.local** is a backend.  
   
 This is important because App Mesh uses Envoy proxies to perform client-side routing. App Mesh listens to the service discovery provider \(AWS Cloud Map\) for changes in IP information related to a registered name. Each time a new backend task is created, ECS registers its IP address and App Mesh will be notified. App Mesh knows which virtual node is associated with these tasks. In fact, it can even filter specific tasks based on a Cloud Map service name attribute, as we saw in the walkthrough earlier. If it is a backend for any other virtual nodes, then App Mesh will send updated IP information to all affected task proxies in the mesh \(i.e., all tasks associated the virtual node specification that declared that the backenddependency.  
   
@@ -269,7 +269,5 @@ App Mesh makes it simple to apply various release strategies, such as blue-green
   
 App Mesh has out of the box support for Amazon CloudWatch logs and metrics and AWS X-Ray for distributed tracing. There is also a healthy ecosystem of commercial and open source providers, including enterprise support for Envoy.  
   
-Want to know more about App Mesh? Visit our [docs](https://docs.aws.amazon.com/app-mesh/), [examples repo](https://github.com/aws/aws-app-mesh-examples), and check out the [roadmap](https://github.com/aws/aws-app-mesh-roadmap). You can get the demo for this article [here](https://github.com/subfuzion/enable-appmesh).  
-.  
-
+Want to know more about App Mesh? Visit our [docs](https://docs.aws.amazon.com/app-mesh/), [examples repo](https://github.com/aws/aws-app-mesh-examples), and check out the [roadmap](https://github.com/aws/aws-app-mesh-roadmap). You can get the demo for this article [here](https://github.com/subfuzion/enable-appmesh).
 
