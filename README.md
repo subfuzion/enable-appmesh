@@ -8,12 +8,6 @@ description: >-
 
 > AWS just released new management console support for AWS App Mesh. Now customers can easily enable and gain the benefits of service mesh support for their microservice applications running on Amazon ECS and AWS Fargate.This article will demonstrate how to enable AWS App Mesh for a Fargate application for control over microservice routing.
 
-> AWS just released new management console support for AWS App Mesh. Now customers can easily enable and gain the benefits of service mesh support for their microservice applications running on Amazon ECS and AWS Fargate.
->
-> This brief guide will demonstrate how to enable AWS App Mesh for a Fargate application. After enabling mesh integration, we'll do a canary release of a new version of a backend service before shifting all of our traffic over.
-
-We will use the Color App for this demo.
-
 ## Introduction
 
 In this article, we’re going to walk through a new Amazon ECS management console workflow for enabling AWS App Mesh support for containerized applications on ECS and Fargate. When you enable App Mesh for existing task definitions in the console using this new feature, Envoy proxy containers will be added and configured properly so that new tasks you deploy will be members of your application service mesh.  
