@@ -43,7 +43,7 @@ For getting started, [this CDK script](https://github.com/subfuzion/enable-appme
 2. Clone the [demo repo](https://github.com/subfuzion/enable-appmesh) from GitHub.
 3. Ensure your environment is configured, as described [here](https://docs.aws.amazon.com/cdk/latest/guide/getting_started.html#getting_started_credentials).
 
-Once your environment is configured for your AWS profile, you can launch the demo app. This example assumes you have a profile named democonfigured to use us-east-1.  
+Once your environment is configured for your AWS profile, you can launch the demo app. This example assumes you have a profile named demo configured to use us-east-1.  
 
 
 ```text
