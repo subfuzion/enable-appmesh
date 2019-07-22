@@ -24,8 +24,6 @@ After we enable App Mesh integration for the app in the console using this new f
 
 ![The Color App after we enable App Mesh](.gitbook/assets/with-app-mesh.png)
 
-{% hint style="info" %}
-If you're reading this in the repo, continue reading the guide at this link:  
-[https://guide.tonypujals.dev/enable-appmesh/](https://guide.tonypujals.dev/enable-appmesh/)
-{% endhint %}
+> Note: If you're reading this in the repo, continue reading the guide at this link:  
+> [https://guide.tonypujals.dev/enable-appmesh/](https://guide.tonypujals.dev/enable-appmesh/)
 
