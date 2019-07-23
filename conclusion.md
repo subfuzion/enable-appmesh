@@ -8,5 +8,5 @@ App Mesh makes it simple to apply various release strategies, such as blue-green
   
 App Mesh has out of the box support for Amazon CloudWatch logs and metrics and AWS X-Ray for distributed tracing. There is also a healthy ecosystem of commercial and open source providers, including enterprise support for Envoy.  
   
-Want to know more about App Mesh? Visit our [docs](https://docs.aws.amazon.com/app-mesh/), [examples repo](https://github.com/aws/aws-app-mesh-examples), and check out the [roadmap](https://github.com/aws/aws-app-mesh-roadmap). You can get the demo for this article [here](https://github.com/subfuzion/enable-appmesh).
+Want to know more about App Mesh? Visit the [docs](https://docs.aws.amazon.com/app-mesh/), [examples repo](https://github.com/aws/aws-app-mesh-examples), and check out the [roadmap](https://github.com/aws/aws-app-mesh-roadmap). You can get the demo for this article [here](https://github.com/subfuzion/enable-appmesh).
 
