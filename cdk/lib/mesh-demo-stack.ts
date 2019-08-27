@@ -148,6 +148,7 @@ export class MeshDemoStack extends Stack {
       managedPolicies: [
         ManagedPolicy.fromAwsManagedPolicyName("CloudWatchLogsFullAccess"),
         ManagedPolicy.fromAwsManagedPolicyName("AWSXRayDaemonWriteAccess"),
+        ManagedPolicy.fromAwsManagedPolicyName("AWSAppMeshEnvoyAccess"),
       ],
     });
 
