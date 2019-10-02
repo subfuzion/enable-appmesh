@@ -1,6 +1,7 @@
 import {CfnMesh, CfnRoute, CfnVirtualNode, CfnVirtualRouter, CfnVirtualService} from "@aws-cdk/aws-appmesh";
 import {Port, SecurityGroup, SubnetType, Vpc} from "@aws-cdk/aws-ec2";
-import {Cluster, ContainerImage, FargateService, FargateTaskDefinition, LogDriver, Protocol} from "@aws-cdk/aws-ecs";
+import {Cluster, ContainerImage, FargateService, FargateTaskDefinition, LogDriver, Protocol, ContainerDependencyCondition} from "@aws-cdk/aws-ecs";
+import {CfnTaskDefinition} from "@aws-cdk/aws-ecs";
 import {ApplicationLoadBalancer} from "@aws-cdk/aws-elasticloadbalancingv2";
 import {ManagedPolicy, Role, ServicePrincipal} from "@aws-cdk/aws-iam";
 import {LogGroup, RetentionDays} from "@aws-cdk/aws-logs";
@@ -171,6 +172,32 @@ export class MeshDemoStack extends Stack {
       memoryLimitMiB: 1024,
     });
 
+    let envoyContainer = gatewayTaskDef.addContainer("envoy", {
+      image: ContainerImage.fromRegistry("subfuzion/aws-appmesh-envoy:v1.11.1.1"),
+      user: "1337",
+      memoryLimitMiB: 500,
+      healthCheck: {
+        command: [
+          "CMD-SHELL",
+          "curl -s http://localhost:9901/server_info | grep state | grep -q LIVE"
+        ],
+        interval: Duration.seconds(5),
+        timeout: Duration.seconds(2),
+        startPeriod: Duration.seconds(10),
+        retries: 3,
+      },
+      environment: {
+        "APPMESH_VIRTUAL_NODE_NAME": "mesh/demo/virtualNode/gateway-vn",
+        "ENABLE_ENVOY_XRAY_TRACING": "1",
+        "ENABLE_ENVOY_STATS_TAGS": "1"
+      }
+    });
+    envoyContainer.addPortMappings({
+      containerPort: 9901
+    }, {
+      containerPort: 15000
+    });
+
     let gatewayContainer = gatewayTaskDef.addContainer("app", {
       image: ContainerImage.fromRegistry(this.GatewayImage),
       environment: {
@@ -185,10 +212,11 @@ export class MeshDemoStack extends Stack {
     gatewayContainer.addPortMappings({
       containerPort: this.APP_PORT,
     });
-
-    // let envoyContainer = gatewayTaskDef.addContainer("envoy", {
-    //   image: ContainerImage.fromEcrRepository()
-    // })
+    gatewayContainer.addContainerDependencies({
+        container: envoyContainer,
+        condition: ContainerDependencyCondition.HEALTHY
+      }
+    );
 
     let xrayContainer = gatewayTaskDef.addContainer("xray", {
       image: ContainerImage.fromRegistry("amazon/aws-xray-daemon"),
@@ -199,6 +227,34 @@ export class MeshDemoStack extends Stack {
     xrayContainer.addPortMappings({
       containerPort: 2000,
       protocol: Protocol.UDP
+    });
+
+    let cfnTaskDef = gatewayTaskDef.node.findChild("Resource") as CfnTaskDefinition;
+    cfnTaskDef.addPropertyOverride("ProxyConfiguration", {
+      Type: "APPMESH",
+      ContainerName: "envoy",
+      ProxyConfigurationProperties: [
+        {
+          Name: "IgnoredUID",
+          Value: "1337",
+        },
+        {
+          Name: "ProxyIngressPort",
+          Value: "15000",
+        },
+        {
+          Name: "ProxyEgressPort",
+          Value: "15001",
+        },
+        {
+          Name: "AppPorts",
+          Value: ["8080"],
+        },
+        {
+          Name: "EgressIgnoredIPs",
+          Value: "169.254.170.2,169.254.169.254",
+        },
+      ],
     });
 
     let gatewayService = new FargateService(this, "GatewayService", {
@@ -243,7 +299,7 @@ export class MeshDemoStack extends Stack {
 
   createColorTeller(...colors: string[]) {
     let create = (color: string, serviceName: string) => {
-      let taskDef = new FargateTaskDefinition(this, `${color}_taskdef-v2`, {
+      let taskDef = new FargateTaskDefinition(this, `${color}_taskdef`, {
         family: color,
         taskRole: this.taskRole,
         executionRole: this.taskExecutionRole,
@@ -251,6 +307,32 @@ export class MeshDemoStack extends Stack {
         memoryLimitMiB: 1024,
       });
 
+      let envoyContainer = taskDef.addContainer("envoy", {
+        image: ContainerImage.fromRegistry("subfuzion/aws-appmesh-envoy:v1.11.1.1"),
+        user: "1337",
+        memoryLimitMiB: 500,
+        healthCheck: {
+          command: [
+            "CMD-SHELL",
+            "curl -s http://localhost:9901/server_info | grep state | grep -q LIVE"
+          ],
+          interval: Duration.seconds(5),
+          timeout: Duration.seconds(2),
+          startPeriod: Duration.seconds(10),
+          retries: 3
+        },
+        environment: {
+          "APPMESH_VIRTUAL_NODE_NAME": `mesh/demo/virtualNode/${color}-vn`,
+          "ENABLE_ENVOY_XRAY_TRACING": "1",
+          "ENABLE_ENVOY_STATS_TAGS": "1"
+        }
+      });
+      envoyContainer.addPortMappings({
+        containerPort: 9901
+      }, {
+        containerPort: 15000
+      });
+    
       let container = taskDef.addContainer("app", {
         image: ContainerImage.fromRegistry(this.ColorTellerImage),
         environment: {
@@ -265,7 +347,12 @@ export class MeshDemoStack extends Stack {
       container.addPortMappings({
         containerPort: this.APP_PORT,
       });
-
+      container.addContainerDependencies({
+          container: envoyContainer,
+          condition: ContainerDependencyCondition.HEALTHY
+        }
+      );
+  
       let xrayContainer = taskDef.addContainer("xray", {
         image: ContainerImage.fromRegistry("amazon/aws-xray-daemon"),
         user: "1337",
@@ -277,6 +364,34 @@ export class MeshDemoStack extends Stack {
         protocol: Protocol.UDP
       });  
 
+      let cfnTaskDef = taskDef.node.findChild("Resource") as CfnTaskDefinition;
+      cfnTaskDef.addPropertyOverride("ProxyConfiguration", {
+        Type: "APPMESH",
+        ContainerName: "envoy",
+        ProxyConfigurationProperties: [
+          {
+            Name: "IgnoredUID",
+            Value: "1337",
+          },
+          {
+            Name: "ProxyIngressPort",
+            Value: "15000",
+          },
+          {
+            Name: "ProxyEgressPort",
+            Value: "15001",
+          },
+          {
+            Name: "AppPorts",
+            Value: ["8080"],
+          },
+          {
+            Name: "EgressIgnoredIPs",
+            Value: "169.254.170.2,169.254.169.254",
+          },
+        ],
+      });
+  
       let service = new FargateService(this, `ColorTellerService-${color}`, {
         cluster: this.cluster,
         serviceName: serviceName,
@@ -288,7 +403,7 @@ export class MeshDemoStack extends Stack {
           // name: "colorteller",
           name: serviceName,
           dnsTtl: this.DEF_TTL,
-        },
+        }
       });
     };
 
