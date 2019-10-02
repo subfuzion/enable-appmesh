@@ -141,6 +141,7 @@ export class MeshDemoStack extends Stack {
     //   namespace: ns,
     //   dnsTtl: this.DEF_TTL,
     // });
+    // serviceName.dependsOn(ns);
 
     // grant cloudwatch and xray permissions to IAM task role for color app tasks
     this.taskRole = new Role(this, "TaskRole", {
@@ -148,6 +149,7 @@ export class MeshDemoStack extends Stack {
       managedPolicies: [
         ManagedPolicy.fromAwsManagedPolicyName("CloudWatchLogsFullAccess"),
         ManagedPolicy.fromAwsManagedPolicyName("AWSXRayDaemonWriteAccess"),
+        ManagedPolicy.fromAwsManagedPolicyName("AWSAppMeshEnvoyAccess"),
       ],
     });
 
@@ -192,6 +194,7 @@ export class MeshDemoStack extends Stack {
       securityGroup: this.internalSecurityGroup,
       cloudMapOptions: {
         name: "gateway",
+        dnsTtl: this.DEF_TTL,
       },
     });
 
@@ -255,6 +258,8 @@ export class MeshDemoStack extends Stack {
         desiredCount: 1,
         securityGroup: this.internalSecurityGroup,
         cloudMapOptions: {
+          // overloading discovery name is possible, but unfortunately CDK doesn't support
+          // name: "colorteller",
           name: serviceName,
           dnsTtl: this.DEF_TTL,
         },
@@ -286,7 +291,11 @@ export class MeshDemoStack extends Stack {
   }
 
   createVirtualNodes() {
-    let create = (name: string, serviceName?: string) => {
+    // name is the task *family* name (eg: "blue")
+    // namespace is the CloudMap namespace (eg, "mesh.local")
+    // serviceName is the discovery name (eg: "colorteller")
+    // CloudMap allows discovery names to be overloaded, unfortunately CDK doesn't support yet
+    let create = (name: string, namespace: string, serviceName?: string) => {
       serviceName = serviceName || name;
 
       // WARNING: keep name in sync with the route spec, if using this node in a route
@@ -298,9 +307,16 @@ export class MeshDemoStack extends Stack {
         virtualNodeName: nodeName,
         spec: {
           serviceDiscovery: {
-            dns: {
-              hostname: serviceName,
-            },
+            awsCloudMap: {
+              serviceName: serviceName,
+              namespaceName: namespace,
+              attributes: [
+                {
+                  key: "ECS_TASK_DEFINITION_FAMILY",
+                  value: name
+                }
+              ]
+            }
           },
           listeners: [{
             portMapping: {
@@ -327,16 +343,18 @@ export class MeshDemoStack extends Stack {
     };
 
     // creates: gateway-vn => gateway.mesh.local
-    create("gateway");
+    create("gateway", this.namespace);
 
     // for the first color, creates: {color}-vn => colorteller.mesh.local
     // special case: first color is the default color used for colorteller.mesh.local
-    create(this.colors[0], "colorteller");
+    create(this.colors[0], this.namespace, "colorteller");
 
     // for all the colors except the first one, creates: {color}-vn => colorteller-{color}.mesh.local
     this.colors.slice(1).forEach(color => {
-      create(color, `colorteller-${color}`);
-    });
+      // unfortunately, can't do this until CDK supports creating task with overloaded discovery names
+      // create(color, this.namespace, 'colorteller');
+     create(color, this.namespace, `colorteller-${color}`);
+     });
   }
 
   createVirtualRouter(): CfnVirtualRouter {
