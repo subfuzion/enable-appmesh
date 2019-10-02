@@ -35,7 +35,7 @@ export class MeshDemoStack extends Stack {
   readonly APP_PORT = 8080;
 
   // ColorTeller services to run
-  readonly colors = ["blue", "green"];
+  readonly colors = ["blue", "green", "red"];
 
   // service domain / namespace
   readonly namespace: string = "mesh.local";
