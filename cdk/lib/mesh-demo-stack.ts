@@ -1,6 +1,6 @@
 import {CfnMesh, CfnRoute, CfnVirtualNode, CfnVirtualRouter, CfnVirtualService} from "@aws-cdk/aws-appmesh";
 import {Port, SecurityGroup, SubnetType, Vpc} from "@aws-cdk/aws-ec2";
-import {Cluster, ContainerImage, FargateService, FargateTaskDefinition, LogDriver} from "@aws-cdk/aws-ecs";
+import {Cluster, ContainerImage, FargateService, FargateTaskDefinition, LogDriver, Protocol} from "@aws-cdk/aws-ecs";
 import {ApplicationLoadBalancer} from "@aws-cdk/aws-elasticloadbalancingv2";
 import {ManagedPolicy, Role, ServicePrincipal} from "@aws-cdk/aws-iam";
 import {LogGroup, RetentionDays} from "@aws-cdk/aws-logs";
@@ -186,6 +186,21 @@ export class MeshDemoStack extends Stack {
       containerPort: this.APP_PORT,
     });
 
+    // let envoyContainer = gatewayTaskDef.addContainer("envoy", {
+    //   image: ContainerImage.fromEcrRepository()
+    // })
+
+    let xrayContainer = gatewayTaskDef.addContainer("xray", {
+      image: ContainerImage.fromRegistry("amazon/aws-xray-daemon"),
+      user: "1337",
+      memoryReservationMiB: 256,
+      cpu: 32
+    });
+    xrayContainer.addPortMappings({
+      containerPort: 2000,
+      protocol: Protocol.UDP
+    });
+
     let gatewayService = new FargateService(this, "GatewayService", {
       cluster: this.cluster,
       serviceName: "gateway",
@@ -250,6 +265,17 @@ export class MeshDemoStack extends Stack {
       container.addPortMappings({
         containerPort: this.APP_PORT,
       });
+
+      let xrayContainer = taskDef.addContainer("xray", {
+        image: ContainerImage.fromRegistry("amazon/aws-xray-daemon"),
+        user: "1337",
+        memoryReservationMiB: 256,
+        cpu: 32
+      });
+      xrayContainer.addPortMappings({
+        containerPort: 2000,
+        protocol: Protocol.UDP
+      });  
 
       let service = new FargateService(this, `ColorTellerService-${color}`, {
         cluster: this.cluster,
