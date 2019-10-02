@@ -1,8 +1,10 @@
 {
   "name": "meshdemo",
+  "description": "Demo enabling App Mesh using the console",
   "version": "0.1.0",
   "license": "Apache-2.0",
   "author": "Tony Pujals <pujals@amazon.com> (https://twitter.com/subfuzion)",
+  "repository": "subfuzion/enable-appmesh",
   "bin": {
     "meshdemo": "bin/meshdemo.js"
   },
@@ -16,20 +18,20 @@
     "cdk": "cdk"
   },
   "devDependencies": {
-    "@types/node": "^8.10.45",
-    "aws-cdk": "^1.0.0",
-    "ts-node": "^8.1.0",
-    "typescript": "^3.3.3333"
+    "@types/node": "^12.7.9",
+    "aws-cdk": "^1.10.1",
+    "ts-node": "^8.4.1",
+    "typescript": "^3.6.3"
   },
   "dependencies": {
-    "@aws-cdk/aws-appmesh": "^1.0.0",
-    "@aws-cdk/aws-ec2": "^1.0.0",
-    "@aws-cdk/aws-ecs": "^1.0.0",
-    "@aws-cdk/aws-ecs-patterns": "^1.0.0",
-    "@aws-cdk/aws-elasticloadbalancingv2": "^1.0.0",
-    "@aws-cdk/aws-iam": "^1.0.0",
-    "@aws-cdk/core": "^1.0.0",
+    "@aws-cdk/aws-appmesh": "^1.10.1",
+    "@aws-cdk/aws-ec2": "^1.10.1",
+    "@aws-cdk/aws-ecs": "^1.10.1",
+    "@aws-cdk/aws-ecs-patterns": "^1.10.1",
+    "@aws-cdk/aws-elasticloadbalancingv2": "^1.10.1",
+    "@aws-cdk/aws-iam": "^1.10.1",
+    "@aws-cdk/core": "^1.10.1",
     "@aws-sdk/credential-provider-node": "0.1.0-preview.2",
-    "source-map-support": "^0.5.9"
+    "source-map-support": "^0.5.13"
   }
 }
