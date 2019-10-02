@@ -1,4 +1,5 @@
-import {CfnMesh, CfnRoute, CfnVirtualNode, CfnVirtualRouter, CfnVirtualService} from "@aws-cdk/aws-appmesh";
+import {Mesh, VirtualNode, Route, VirtualRouter, VirtualService} from "@aws-cdk/aws-appmesh";
+//import {CfnMesh, CfnRoute, CfnVirtualNode, CfnVirtualRouter, CfnVirtualService} from "@aws-cdk/aws-appmesh";
 import {Port, SecurityGroup, SubnetType, Vpc} from "@aws-cdk/aws-ec2";
 import {Cluster, ContainerImage, FargateService, FargateTaskDefinition, LogDriver} from "@aws-cdk/aws-ecs";
 import {ApplicationLoadBalancer} from "@aws-cdk/aws-elasticloadbalancingv2";
@@ -54,7 +55,7 @@ export class MeshDemoStack extends Stack {
   internalSecurityGroup: SecurityGroup;
   externalSecurityGroup: SecurityGroup;
   logGroup: LogGroup;
-  mesh: CfnMesh;
+  mesh: Mesh;
 
 
   constructor(scope: Construct, id: string, props?: StackProps) {
@@ -279,7 +280,7 @@ export class MeshDemoStack extends Stack {
   }
 
   createMesh() {
-    this.mesh = new CfnMesh(this, "Mesh", {
+    this.mesh = new Mesh(this, "Mesh", {
       // use the same name to make it easy to identify the stack it's associated with
       meshName: this.stackName,
     });
@@ -295,6 +296,7 @@ export class MeshDemoStack extends Stack {
     // namespace is the CloudMap namespace (eg, "mesh.local")
     // serviceName is the discovery name (eg: "colorteller")
     // CloudMap allows discovery names to be overloaded, unfortunately CDK doesn't support yet
+    let mesh = this.mesh;
     let create = (name: string, namespace: string, serviceName?: string) => {
       serviceName = serviceName || name;
 
@@ -302,9 +304,22 @@ export class MeshDemoStack extends Stack {
       // WARNING: keep name in sync with the virtual service, if using this node as a provider
       // update the route spec as well in createRoute()
       let nodeName = `${name}-vn`;
-      (new CfnVirtualNode(this, nodeName, {
-        meshName: this.mesh.meshName,
-        virtualNodeName: nodeName,
+
+      // SEE: https://github.com/aws/aws-cdk/tree/master/packages/%40aws-cdk/aws-appmesh
+
+      
+      mesh.addVirtualNode(nodeName, {
+        cloudMapServiceInstanceAttributes: {
+          "ECS_TASK_DEFINITION_FAMILY": name
+        },
+        cloudMapService: {
+
+        }
+      });
+    };
+
+/*
+        
         spec: {
           serviceDiscovery: {
             awsCloudMap: {
@@ -339,8 +354,10 @@ export class MeshDemoStack extends Stack {
             }
           }],
         },
-      })).addDependsOn(this.mesh);
-    };
+
+*/
+
+
 
     // creates: gateway-vn => gateway.mesh.local
     create("gateway", this.namespace);
