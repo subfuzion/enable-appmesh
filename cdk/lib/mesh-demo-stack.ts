@@ -318,9 +318,10 @@ export class MeshDemoStack extends Stack {
       //     retries: 3,
       //   },
       //   environment: {
-      //     "APPMESH_VIRTUAL_NODE_NAME": "mesh/demo/virtualNode/gateway-vn",
+      //     "APPMESH_VIRTUAL_NODE_NAME": `mesh/demo/virtualNode/${color}-vn`,
       //     "ENABLE_ENVOY_XRAY_TRACING": "1",
       //     "ENABLE_ENVOY_STATS_TAGS": "1",
+      //     "ENVOY_LOG_LEVEL": "debug",
       //   },
       // });
       // envoyContainer.addPortMappings({
