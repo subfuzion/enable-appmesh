@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -ex
+
+aws cloudformation delete-stack \
+	--stack-name demo
+
+aws cloudformation wait stack-delete-complete \
+	--stack-name demo
+

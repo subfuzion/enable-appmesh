@@ -1,6 +1,13 @@
+#!/usr/bin/env bash
+set -ex
+
 aws cloudformation deploy \
-	--template-file deploy.yaml \
+	--template-file demo.yaml \
 	--stack-name demo \
 	--capabilities CAPABILITY_IAM
 
-
+echo "Public URL:"
+aws cloudformation describe-stacks \
+  --stack-name=demo \
+  --query="Stacks[0].Outputs[?OutputKey=='URL'].OutputValue" \
+  --output=text

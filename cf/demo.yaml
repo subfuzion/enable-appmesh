@@ -1,9 +1,20 @@
+---
+Description: >
+  Fully mesh-enabled Color App demo (with blue, green, and red colorteller backend services).
+
+Parameters:
+
+  Name:
+    Description: The primary name to identify this deployment and associated resources
+    Type: String
+    Default: demo
+
 Resources:
 
   LogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: demo
+      LogGroupName: !Ref Name
       RetentionInDays: 1
     UpdateReplacePolicy: Delete
     DeletionPolicy: Delete
@@ -17,7 +28,7 @@ Resources:
       InstanceTenancy: default
       Tags:
         - Key: Name
-          Value: demo/VPC
+          Value: !Sub "${Name}/VPC"
 
   VPCIngressSubnet1Subnet:
     Type: AWS::EC2::Subnet
@@ -32,7 +43,7 @@ Resources:
       MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
-          Value: demo/VPC/IngressSubnet1
+          Value: !Sub "${Name}/VPC/IngressSubnet1"
         - Key: aws-cdk:subnet-name
           Value: ingress
         - Key: aws-cdk:subnet-type
@@ -45,7 +56,7 @@ Resources:
         Ref: VPC
       Tags:
         - Key: Name
-          Value: demo/VPC/IngressSubnet1
+          Value: !Sub "${Name}/VPC/IngressSubnet1"
 
   VPCIngressSubnet1RouteTableAssociation7700457B:
     Type: AWS::EC2::SubnetRouteTableAssociation
@@ -71,7 +82,7 @@ Resources:
     Properties:
       Domain: vpc
 
-  VPCIngressSubnet1NATGateway06A5D97E:
+  VPCIngressSubnet1NATGateway:
     Type: AWS::EC2::NatGateway
     Properties:
       AllocationId:
@@ -82,7 +93,7 @@ Resources:
         Ref: VPCIngressSubnet1Subnet
       Tags:
         - Key: Name
-          Value: demo/VPC/IngressSubnet1
+          Value: !Sub "${Name}/VPC/IngressSubnet1"
 
   VPCIngressSubnet2Subnet:
     Type: AWS::EC2::Subnet
@@ -97,7 +108,7 @@ Resources:
       MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
-          Value: demo/VPC/IngressSubnet2
+          Value: !Sub "${Name}/VPC/IngressSubnet2"
         - Key: aws-cdk:subnet-name
           Value: ingress
         - Key: aws-cdk:subnet-type
@@ -110,7 +121,7 @@ Resources:
         Ref: VPC
       Tags:
         - Key: Name
-          Value: demo/VPC/IngressSubnet2
+          Value: !Sub "${Name}/VPC/IngressSubnet2"
 
   VPCIngressSubnet2RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
@@ -147,7 +158,7 @@ Resources:
         Ref: VPCIngressSubnet2Subnet
       Tags:
         - Key: Name
-          Value: demo/VPC/IngressSubnet2
+          Value: !Sub "${Name}/VPC/IngressSubnet2"
 
   VPCApplicationSubnet1Subnet:
     Type: AWS::EC2::Subnet
@@ -162,7 +173,7 @@ Resources:
       MapPublicIpOnLaunch: false
       Tags:
         - Key: Name
-          Value: demo/VPC/applicationSubnet1
+          Value: !Sub "${Name}/VPC/applicationSubnet1"
         - Key: aws-cdk:subnet-name
           Value: application
         - Key: aws-cdk:subnet-type
@@ -175,7 +186,7 @@ Resources:
         Ref: VPC
       Tags:
         - Key: Name
-          Value: demo/VPC/applicationSubnet1
+          Value: !Sub "${Name}/VPC/applicationSubnet1"
 
   VPCApplicationSubnet1RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
@@ -192,7 +203,7 @@ Resources:
         Ref: VPCApplicationSubnet1RouteTable
       DestinationCidrBlock: 0.0.0.0/0
       NatGatewayId:
-        Ref: VPCIngressSubnet1NATGateway06A5D97E
+        Ref: VPCIngressSubnet1NATGateway
 
   VPCApplicationSubnet2Subnet:
     Type: AWS::EC2::Subnet
@@ -207,7 +218,7 @@ Resources:
       MapPublicIpOnLaunch: false
       Tags:
         - Key: Name
-          Value: demo/VPC/applicationSubnet2
+          Value: !Sub "${Name}/VPC/applicationSubnet2"
         - Key: aws-cdk:subnet-name
           Value: application
         - Key: aws-cdk:subnet-type
@@ -220,7 +231,7 @@ Resources:
         Ref: VPC
       Tags:
         - Key: Name
-          Value: demo/VPC/applicationSubnet2
+          Value: !Sub "${Name}/VPC/applicationSubnet2"
 
   VPCApplicationSubnet2RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
@@ -244,7 +255,7 @@ Resources:
     Properties:
       Tags:
         - Key: Name
-          Value: demo/VPC
+          Value: !Sub "${Name}/VPC"
 
   VPCVPCGW:
     Type: AWS::EC2::VPCGatewayAttachment
@@ -257,7 +268,7 @@ Resources:
   ExternalSG:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: demo/ExternalSG
+      GroupDescription: !Sub "${Name}/ExternalSG"
       SecurityGroupEgress:
         - CidrIp: 0.0.0.0/0
           Description: Allow all outbound traffic by default
@@ -274,7 +285,7 @@ Resources:
   InternalSG:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: demo/InternalSG
+      GroupDescription: !Sub "${Name}/InternalSG"
       SecurityGroupEgress:
         - CidrIp: 0.0.0.0/0
           Description: Allow all outbound traffic by default
@@ -452,7 +463,7 @@ Resources:
           User: "1337"
         - Environment:
             - Name:  "APPMESH_VIRTUAL_NODE_NAME"
-              Value: "mesh/demo/virtualNode/gateway-vn"
+              Value: !Sub "mesh/${Name}/virtualNode/gateway-vn"
             - Name:  "ENABLE_ENVOY_XRAY_TRACING"
               Value: "1"
             - Name:  "ENABLE_ENVOY_STATS_TAGS"
@@ -657,7 +668,7 @@ Resources:
           User: "1337"
         - Environment:
             - Name:  "APPMESH_VIRTUAL_NODE_NAME"
-              Value: "mesh/demo/virtualNode/blue-vn"
+              Value: !Sub "mesh/${Name}/virtualNode/blue-vn"
             - Name:  "ENABLE_ENVOY_XRAY_TRACING"
               Value: "1"
             - Name:  "ENABLE_ENVOY_STATS_TAGS"
@@ -808,7 +819,7 @@ Resources:
           User: "1337"
         - Environment:
             - Name:  "APPMESH_VIRTUAL_NODE_NAME"
-              Value: "mesh/demo/virtualNode/green-vn"
+              Value: !Sub "mesh/${Name}/virtualNode/green-vn"
             - Name:  "ENABLE_ENVOY_XRAY_TRACING"
               Value: "1"
             - Name:  "ENABLE_ENVOY_STATS_TAGS"
@@ -959,7 +970,7 @@ Resources:
           User: "1337"
         - Environment:
             - Name:  "APPMESH_VIRTUAL_NODE_NAME"
-              Value: "mesh/demo/virtualNode/red-vn"
+              Value: !Sub "mesh/${Name}/virtualNode/red-vn"
             - Name:  "ENABLE_ENVOY_XRAY_TRACING"
               Value: "1"
             - Name:  "ENABLE_ENVOY_STATS_TAGS"
@@ -1079,12 +1090,12 @@ Resources:
   Mesh:
     Type: AWS::AppMesh::Mesh
     Properties:
-      MeshName: demo
+      MeshName: !Ref Name
 
   GatewayVN:
     Type: AWS::AppMesh::VirtualNode
     Properties:
-      MeshName: demo
+      MeshName: !Ref Name
       Spec:
         Backends:
           - VirtualService:
@@ -1115,7 +1126,7 @@ Resources:
   BlueVN:
     Type: AWS::AppMesh::VirtualNode
     Properties:
-      MeshName: demo
+      MeshName: !Ref Name
       Spec:
         Backends:
           - VirtualService:
@@ -1146,7 +1157,7 @@ Resources:
   GreenVN:
     Type: AWS::AppMesh::VirtualNode
     Properties:
-      MeshName: demo
+      MeshName: !Ref Name
       Spec:
         Backends:
           - VirtualService:
@@ -1177,7 +1188,7 @@ Resources:
   RedVN:
     Type: AWS::AppMesh::VirtualNode
     Properties:
-      MeshName: demo
+      MeshName: !Ref Name
       Spec:
         Backends:
           - VirtualService:
@@ -1208,7 +1219,7 @@ Resources:
   ColorTellerVirtualRouter:
     Type: AWS::AppMesh::VirtualRouter
     Properties:
-      MeshName: demo
+      MeshName: !Ref Name
       Spec:
         Listeners:
           - PortMapping:
@@ -1221,7 +1232,7 @@ Resources:
   ColorRoute:
     Type: AWS::AppMesh::Route
     Properties:
-      MeshName: demo
+      MeshName: !Ref Name
       RouteName: color-route
       Spec:
         HttpRoute:
@@ -1240,7 +1251,7 @@ Resources:
   ColorTellerVirtualService:
     Type: AWS::AppMesh::VirtualService
     Properties:
-      MeshName: demo
+      MeshName: !Ref Name
       Spec:
         Provider:
           VirtualRouter:
@@ -1252,7 +1263,7 @@ Resources:
 Outputs:
 
   URL:
-    Description: Color App public URL
+    Description: "Color App public URL:"
     Value:
       Fn::GetAtt:
         - PublicALB
