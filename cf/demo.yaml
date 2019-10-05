@@ -1128,9 +1128,6 @@ Resources:
     Properties:
       MeshName: !Ref Name
       Spec:
-        Backends:
-          - VirtualService:
-              VirtualServiceName: colorteller.mesh.local
         Listeners:
           - HealthCheck:
               HealthyThreshold: 2
@@ -1159,9 +1156,6 @@ Resources:
     Properties:
       MeshName: !Ref Name
       Spec:
-        Backends:
-          - VirtualService:
-              VirtualServiceName: colorteller.mesh.local
         Listeners:
           - HealthCheck:
               HealthyThreshold: 2
@@ -1190,9 +1184,6 @@ Resources:
     Properties:
       MeshName: !Ref Name
       Spec:
-        Backends:
-          - VirtualService:
-              VirtualServiceName: colorteller.mesh.local
         Listeners:
           - HealthCheck:
               HealthyThreshold: 2
