@@ -161,6 +161,11 @@ export class MeshDemoStack extends Stack {
         ManagedPolicy.fromAwsManagedPolicyName("AmazonEC2ContainerRegistryReadOnly"),
       ],
     });
+    // CDK will print after finished deploying stack
+    new CfnOutput(this, "ClusterName", {
+      description: "ECS/Fargate cluster name",
+      value: this.cluster.clusterName,
+    });
   }
 
   createGateway() {
@@ -428,7 +433,7 @@ export class MeshDemoStack extends Stack {
     // namespace is the CloudMap namespace (eg, "mesh.local")
     // serviceName is the discovery name (eg: "colorteller")
     // CloudMap allows discovery names to be overloaded, unfortunately CDK doesn't support yet
-    let create = (name: string, namespace: string, serviceName?: string) => {
+    let create = (name: string, namespace: string, serviceName?: string, backends?: CfnVirtualNode.BackendProperty[]) => {
       serviceName = serviceName || name;
 
       // WARNING: keep name in sync with the route spec, if using this node in a route
@@ -466,17 +471,17 @@ export class MeshDemoStack extends Stack {
               unhealthyThreshold: 2,
             },
           }],
-          backends: [{
-            virtualService: {
-              virtualServiceName: `colorteller.${this.namespace}`,
-            },
-          }],
+          backends: backends,
         },
       })).addDependsOn(this.mesh);
     };
 
     // creates: gateway-vn => gateway.mesh.local
-    create("gateway", this.namespace);
+    create("gateway", this.namespace, "gateway", [{
+      virtualService: {
+        virtualServiceName: `colorteller.${this.namespace}`,
+      },
+    }]);
 
     // for the first color, creates: {color}-vn => colorteller.mesh.local
     // special case: first color is the default color used for colorteller.mesh.local
@@ -540,8 +545,8 @@ export class MeshDemoStack extends Stack {
       meshName: this.mesh.meshName,
       spec: {
         provider: {
-          // WARNING: keep in sync with virtual node name if using that as this provider
-          // WARNING: keep in sync with virtual router name if using that as this provider
+          // WARNING: whichever you use as the provider (virtual node or virtual router) make
+          // sure to keep the exact name in sync with the name you identify here when updating.
           virtualRouter: {virtualRouterName: "colorteller-vr"},
         },
       },
