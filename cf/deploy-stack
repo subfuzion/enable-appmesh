@@ -1,13 +1,40 @@
 #!/usr/bin/env bash
-set -ex
+# set -x
+
+STACKNAME=demo
+
+get_stack_output() {
+  local key=$1
+
+  val=$(
+    aws cloudformation describe-stacks \
+      --stack-name="${STACKNAME}" \
+      --query="Stacks[0].Outputs[?OutputKey=='"""${key}"""'].OutputValue" \
+      --output=text
+  )
+
+  (($? == 0)) && echo "${val}" || echo ""
+}
+
+print_stack_output() {
+  local key=$1
+
+  val=$(get_stack_output "${key}")
+
+  printf "${STACKNAME}.%s = %s\n" "${key}" "${val}"
+}
 
 aws cloudformation deploy \
-	--template-file demo.yaml \
-	--stack-name demo \
-	--capabilities CAPABILITY_IAM
+  --template-file demo.yaml \
+  --stack-name "${STACKNAME}" \
+  --capabilities CAPABILITY_IAM
 
-echo "Public URL:"
-aws cloudformation describe-stacks \
-  --stack-name=demo \
-  --query="Stacks[0].Outputs[?OutputKey=='URL'].OutputValue" \
-  --output=text
+clusterName=$(get_stack_output "ClusterName")
+
+aws ecs update-cluster-settings \
+  --cluster "${clusterName}" \
+  --settings name=containerInsights,value=enabled \
+  >/dev/null
+
+print_stack_output "ClusterName"
+print_stack_output "URL"
