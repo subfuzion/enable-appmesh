@@ -8,9 +8,5 @@ if [ -z $COLOR_GATEWAY_IMAGE ]; then
     exit 1
 fi
 
-# build
 docker build -t $COLOR_GATEWAY_IMAGE .
-
-# push
-$(aws ecr get-login --no-include-email --region $AWS_DEFAULT_REGION --profile $AWS_DEFAULT_PROFILE)
 docker push $COLOR_GATEWAY_IMAGE

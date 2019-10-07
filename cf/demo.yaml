@@ -664,7 +664,10 @@ Resources:
           PortMappings:
             - ContainerPort: 8080
               Protocol: tcp
-        - Cpu: 32
+        - Command:
+            - "logLevel"
+            - "warn"
+          Cpu: 32
           Essential: true
           Image: amazon/aws-xray-daemon
           MemoryReservation: 256
@@ -815,7 +818,10 @@ Resources:
           PortMappings:
             - ContainerPort: 8080
               Protocol: tcp
-        - Cpu: 32
+        - Command:
+            - "logLevel"
+            - "warn"
+          Cpu: 32
           Essential: true
           Image: amazon/aws-xray-daemon
           MemoryReservation: 256
@@ -966,7 +972,10 @@ Resources:
           PortMappings:
             - ContainerPort: 8080
               Protocol: tcp
-        - Cpu: 32
+        - Command:
+            - "logLevel"
+            - "warn"
+          Cpu: 32
           Essential: true
           Image: amazon/aws-xray-daemon
           MemoryReservation: 256
