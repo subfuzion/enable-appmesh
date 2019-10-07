@@ -1,10 +1,11 @@
-import {CfnMesh, CfnRoute, CfnVirtualNode, CfnVirtualRouter, CfnVirtualService} from "@aws-cdk/aws-appmesh";
+import {Mesh, VirtualNode, VirtualRouter, VirtualService} from "@aws-cdk/aws-appmesh";
+import appmesh = require("@aws-cdk/aws-appmesh");
 import {Port, SecurityGroup, SubnetType, Vpc} from "@aws-cdk/aws-ec2";
 import {Cluster, ContainerImage, FargateService, FargateTaskDefinition, LogDriver, Protocol} from "@aws-cdk/aws-ecs";
-import {CfnTaskDefinition, ContainerDependencyCondition} from "@aws-cdk/aws-ecs";
 import {ApplicationLoadBalancer} from "@aws-cdk/aws-elasticloadbalancingv2";
 import {ManagedPolicy, Role, ServicePrincipal} from "@aws-cdk/aws-iam";
 import {LogGroup, RetentionDays} from "@aws-cdk/aws-logs";
+import cloudmap = require("@aws-cdk/aws-servicediscovery")
 import {CfnOutput, Construct, Duration, RemovalPolicy, Stack, StackProps} from "@aws-cdk/core";
 
 /**
@@ -47,7 +48,7 @@ export class MeshDemoStack extends Stack {
   // end: Demo customization
 
 
-  stackName: string;
+  name: string;
   taskRole: Role;
   taskExecutionRole: Role;
   vpc: Vpc;
@@ -55,26 +56,29 @@ export class MeshDemoStack extends Stack {
   internalSecurityGroup: SecurityGroup;
   externalSecurityGroup: SecurityGroup;
   logGroup: LogGroup;
-  mesh: CfnMesh;
+  mesh: Mesh;
 
 
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
 
     // store for convenience
-    this.stackName = props && props.stackName ? props.stackName : "demo";
+    this.name = props && props.stackName ? props.stackName : "demo";
 
     this.createLogGroup();
     this.createVpc();
     this.createCluster();
-    this.createGateway();
-    this.createColorTeller(...this.colors);
     this.createMesh();
+    let router = this.createVirtualRouter();
+    let backend = this.createVirtualService(router);
+    this.createGateway([backend]);
+    let virtualNodes = this.createColorTeller(...this.colors);
+    this.createRoute(router, virtualNodes);    
   }
 
   createLogGroup() {
     this.logGroup = new LogGroup(this, "LogGroup", {
-      logGroupName: this.stackName,
+      logGroupName: this.name,
       retention: RetentionDays.ONE_DAY,
       removalPolicy: RemovalPolicy.DESTROY,
     });
@@ -168,7 +172,7 @@ export class MeshDemoStack extends Stack {
     });
   }
 
-  createGateway() {
+  createGateway(backends: VirtualService[]) {
     let gatewayTaskDef = new FargateTaskDefinition(this, "GatewayTaskDef", {
       family: "gateway",
       taskRole: this.taskRole,
@@ -269,6 +273,8 @@ export class MeshDemoStack extends Stack {
       },
     });
 
+    this.createVirtualNodes("gateway", gatewayService.cloudMapService, backends);
+
     let alb = new ApplicationLoadBalancer(this, "PublicALB", {
       vpc: this.vpc,
       internetFacing: true,
@@ -299,7 +305,7 @@ export class MeshDemoStack extends Stack {
 
   // TODO: need to factor out all the duplicated code (DRY!) between this and createGateway...
   createColorTeller(...colors: string[]) {
-    let create = (color: string, serviceName: string) => {
+    let create = (color: string, serviceName: string): VirtualNode => {
       let taskDef = new FargateTaskDefinition(this, `${color}_taskdef-v2`, {
         family: color,
         taskRole: this.taskRole,
@@ -402,157 +408,95 @@ export class MeshDemoStack extends Stack {
           dnsTtl: this.DEF_TTL,
         },
       });
-    };
 
+      return this.createVirtualNodes(color, service.cloudMapService);
+    };
+    let nodes = new Array<VirtualNode>();
     // initial color is a special case; before we enable app mesh, gateway
     // needs to reference an actual colorteller.mesh.local service (COLOR_TELLER_ENDPOINT);
     // the other colors need a unique namespace for now because CDK won't
     // allow reusing the same service name (although we can do this without
     // CDK; this is supported by Cloud Map / App Mesh, which uses Cloud
     // Map attributes for ECS service discovery: ECS_TASK_DEFINITION_FAMILY
-    create(colors[0], "colorteller");
+    nodes.push(create(colors[0], "colorteller"));
     colors.slice(1).forEach(color => {
-      create(color, `colorteller-${color}`);
+      nodes.push(create(color, `colorteller-${color}`));
     });
+    return nodes;
   }
 
   createMesh() {
-    this.mesh = new CfnMesh(this, "Mesh", {
+    this.mesh = new Mesh(this, "Mesh", {
       // use the same name to make it easy to identify the stack it's associated with
-      meshName: this.stackName,
+      meshName: this.name,
     });
-
-    this.createVirtualNodes();
-    let router = this.createVirtualRouter();
-    this.createRoute(router);
-    this.createVirtualService(router);
   }
 
-  createVirtualNodes() {
-    // name is the task *family* name (eg: "blue")
-    // namespace is the CloudMap namespace (eg, "mesh.local")
-    // serviceName is the discovery name (eg: "colorteller")
-    // CloudMap allows discovery names to be overloaded, unfortunately CDK doesn't support yet
-    let create = (name: string, namespace: string, serviceName?: string, backends?: CfnVirtualNode.BackendProperty[]) => {
-      serviceName = serviceName || name;
-
-      // WARNING: keep name in sync with the route spec, if using this node in a route
-      // WARNING: keep name in sync with the virtual service, if using this node as a provider
-      // update the route spec as well in createRoute()
-      let nodeName = `${name}-vn`;
-      (new CfnVirtualNode(this, nodeName, {
-        meshName: this.mesh.meshName,
-        virtualNodeName: nodeName,
-        spec: {
-          serviceDiscovery: {
-            awsCloudMap: {
-              serviceName: serviceName,
-              namespaceName: namespace,
-              attributes: [
-                {
-                  key: "ECS_TASK_DEFINITION_FAMILY",
-                  value: name,
-                },
-              ],
-            },
-          },
-          listeners: [{
-            portMapping: {
-              protocol: "http",
-              port: this.APP_PORT,
-            },
-            healthCheck: {
-              healthyThreshold: 2,
-              intervalMillis: 10 * 1000,
-              path: "/ping",
-              port: this.APP_PORT,
-              protocol: "http",
-              timeoutMillis: 5 * 1000,
-              unhealthyThreshold: 2,
-            },
-          }],
-          backends: backends,
+  createVirtualNodes(name: string, service?: cloudmap.IService, backends?: appmesh.IVirtualService[]) {
+    let nodeName = `${name}-vn`;
+    let node = this.mesh.addVirtualNode(nodeName, {
+      virtualNodeName: nodeName,
+      cloudMapService: service,
+      cloudMapServiceInstanceAttributes: {
+        ECS_TASK_DEFINITION_FAMILY: name
+      },
+      listener: {
+        portMapping: {
+          protocol: appmesh.Protocol.HTTP,
+          port: this.APP_PORT,
         },
-      })).addDependsOn(this.mesh);
-    };
-
-    // creates: gateway-vn => gateway.mesh.local
-    create("gateway", this.namespace, "gateway", [{
-      virtualService: {
-        virtualServiceName: `colorteller.${this.namespace}`,
+        healthCheck: {
+          healthyThreshold: 2,
+          interval: Duration.seconds(10),
+          path: "/ping",
+          port: this.APP_PORT,
+          protocol: appmesh.Protocol.HTTP,
+          timeout: Duration.seconds(5),
+          unhealthyThreshold: 2
+        }
       },
-    }]);
-
-    // for the first color, creates: {color}-vn => colorteller.mesh.local
-    // special case: first color is the default color used for colorteller.mesh.local
-    create(this.colors[0], this.namespace, "colorteller");
-
-    // for all the colors except the first one, creates: {color}-vn => colorteller-{color}.mesh.local
-    this.colors.slice(1).forEach(color => {
-      // unfortunately, can't do this until CDK supports creating task with overloaded discovery names
-      // create(color, this.namespace, 'colorteller');
-      create(color, this.namespace, `colorteller-${color}`);
+      backends
     });
+    return node;
   }
 
-  createVirtualRouter(): CfnVirtualRouter {
-    let router = new CfnVirtualRouter(this, "ColorTellerVirtualRouter", {
-      // WARNING: keep in sync with virtual service provider if using this
-      virtualRouterName: "colorteller-vr",
-      meshName: this.mesh.meshName,
-      spec: {
-        listeners: [{
-          portMapping: {
-            protocol: "http",
-            port: this.APP_PORT,
-          },
-        }],
+  createVirtualRouter(): VirtualRouter {
+    let router = this.mesh.addVirtualRouter("ColorTellerVirtualRouter", {
+      listener: {
+        portMapping: {
+          port: this.APP_PORT,
+          protocol: appmesh.Protocol.HTTP
+        }
       },
+      virtualRouterName: "colorteller-vr"
     });
-    router.addDependsOn(this.mesh);
     return router;
   }
 
-  createRoute(router: CfnVirtualRouter) {
-    let route = new CfnRoute(this, "ColorRoute", {
+  createRoute(router: VirtualRouter, virtualNodes: VirtualNode[]) {
+    router.addRoute("ColorRoute", {
       routeName: "color-route",
-      meshName: this.mesh.meshName,
-      virtualRouterName: router.virtualRouterName,
-      spec: {
-        httpRoute: {
-          match: {
-            prefix: "/",
-          },
-          action: {
-            weightedTargets: [{
-              // WARNING: if you change the name for a virtual node, make sure you update this also
-              virtualNode: "blue-vn",
-              weight: 1,
-            }, {
-              virtualNode: "green-vn",
-              weight: 1,
-            }],
-          },
+      routeTargets: [
+        {
+          virtualNode: virtualNodes[0],
+          weight: 1
         },
-      },
+        {
+          virtualNode: virtualNodes[1],
+          weight: 1
+        }
+      ],
+      routeType: appmesh.RouteType.HTTP,
+      prefix: "/"
     });
-    route.addDependsOn(router);
   }
 
-  createVirtualService(router: CfnVirtualRouter) {
-    let svc = new CfnVirtualService(this, "ColorTellerVirtualService", {
+  createVirtualService(router: VirtualRouter) {
+    let svc = this.mesh.addVirtualService("ColorTellerVirtualService", {
       virtualServiceName: `colorteller.${this.namespace}`,
-      meshName: this.mesh.meshName,
-      spec: {
-        provider: {
-          // WARNING: whichever you use as the provider (virtual node or virtual router) make
-          // sure to keep the exact name in sync with the name you identify here when updating.
-          virtualRouter: {virtualRouterName: "colorteller-vr"},
-        },
-      },
+      virtualRouter: router
     });
-    svc.addDependsOn(router);
+    return svc;
   }
 
 }
-
