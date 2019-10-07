@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# vim:syn=sh:ts=4:sw=4:et:ai
+
+error() {
+  echo "[ERROR] $1"
+  exit 1
+}
+
+[[ -z "$1" ]] && error "missing first arg: should be path to a file"
+FILE=$1
+
+aws appmesh update-route \
+    --cli-input-json "file://${FILE}"
+

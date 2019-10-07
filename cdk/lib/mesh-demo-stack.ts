@@ -22,16 +22,16 @@ export class MeshDemoStack extends Stack {
   // Gateway
   // You can use either either of these:
   // - "226767807331.dkr.ecr.us-west-2.amazonaws.com/gateway:latest"
-  // - "subfuzion/colorgateway:v2"
+  // - "subfuzion/colorgateway:v4"
   // - your own image on Docker Hub or ECR for your own account
-  readonly GatewayImage = "subfuzion/colorgateway:v2";
+  readonly GatewayImage = "subfuzion/colorgateway:v4";
 
   // ColorTeller
   // You can use either either of these:
   // - "226767807331.dkr.ecr.us-west-2.amazonaws.com/colorteller:latest"
-  // - "subfuzion/colorteller:v2"
+  // - "subfuzion/colorteller:v4"
   // - your own image on Docker Hub or ECR for your own account
-  readonly ColorTellerImage = "subfuzion/colorteller:v2";
+  readonly ColorTellerImage = "subfuzion/colorteller:v4";
 
   // Gateway and ColorTeller server port
   readonly APP_PORT = 8080;
@@ -305,8 +305,8 @@ export class MeshDemoStack extends Stack {
 
   // TODO: need to factor out all the duplicated code (DRY!) between this and createGateway...
   createColorTeller(...colors: string[]) {
-    let create = (color: string, serviceName: string): VirtualNode => {
-      let taskDef = new FargateTaskDefinition(this, `${color}_taskdef-v2`, {
+    let create = (color: string, serviceName: string) => {
+      let taskDef = new FargateTaskDefinition(this, `${color}_taskdef`, {
         family: color,
         taskRole: this.taskRole,
         executionRole: this.taskExecutionRole,

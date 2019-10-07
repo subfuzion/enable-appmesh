@@ -14,6 +14,33 @@ Parameters:
     Type: Number
     Default: 3
 
+  ColorGatewayImage:
+    Description: Docker image for gateway service
+    Type: String
+    Default: subfuzion/colorgateway:v4
+    # Default: 226767807331.dkr.ecr.us-west-2.amazonaws.com/gateway:latest
+
+  ColorTellerImage:
+    Description: Docker image for colorteller service
+    Type: String
+    Default: subfuzion/colorteller:v4
+    # Default: 226767807331.dkr.ecr.us-west-2.amazonaws.com/colorteller:latest
+
+  RedColorTellerResponseDelay:
+    Description: Inject delays in colorteller responses (in milliseconds)
+    Type: Number
+    Default: 0
+
+  RedColorTellerPeriodicError:
+    Description: Inject periodic errors (HTTP 500) in colorteller responses
+    Type: Number
+    Default: 3 # every 3rd response will be an error
+
+  EnableXrayTracing:
+    Description: Enable X-Ray tracing (0 to disable, 1 to enable)
+    Type: String
+    Default: 1
+
 Resources:
 
   LogGroup:
@@ -445,8 +472,10 @@ Resources:
               Value: "8080"
             - Name: COLOR_TELLER_ENDPOINT
               Value: colorteller.mesh.local:8080
+            - Name: ENABLE_XRAY_TRACING
+              Value: !Ref EnableXrayTracing
           Essential: true
-          Image: subfuzion/colorgateway:v2
+          Image: !Ref ColorGatewayImage
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -472,7 +501,7 @@ Resources:
             - Name:  "APPMESH_VIRTUAL_NODE_NAME"
               Value: !Sub "mesh/${Name}/virtualNode/gateway-vn"
             - Name:  "ENABLE_ENVOY_XRAY_TRACING"
-              Value: "1"
+              Value: !Ref EnableXrayTracing
             - Name:  "ENABLE_ENVOY_STATS_TAGS"
               Value: "1"
             - Name:  "ENVOY_LOG_LEVEL"
@@ -650,8 +679,10 @@ Resources:
               Value: "8080"
             - Name: COLOR
               Value: blue
+            - Name: ENABLE_XRAY_TRACING
+              Value: !Ref EnableXrayTracing
           Essential: true
-          Image: subfuzion/colorteller:v2
+          Image: !Ref ColorTellerImage
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -664,7 +695,10 @@ Resources:
           PortMappings:
             - ContainerPort: 8080
               Protocol: tcp
-        - Cpu: 32
+        - Command:
+            - "logLevel"
+            - "warn"
+          Cpu: 32
           Essential: true
           Image: amazon/aws-xray-daemon
           MemoryReservation: 256
@@ -677,7 +711,7 @@ Resources:
             - Name:  "APPMESH_VIRTUAL_NODE_NAME"
               Value: !Sub "mesh/${Name}/virtualNode/blue-vn"
             - Name:  "ENABLE_ENVOY_XRAY_TRACING"
-              Value: "1"
+              Value: !Ref EnableXrayTracing
             - Name:  "ENABLE_ENVOY_STATS_TAGS"
               Value: "1"
             - Name:  "ENVOY_LOG_LEVEL"
@@ -801,8 +835,10 @@ Resources:
               Value: "8080"
             - Name: COLOR
               Value: green
+            - Name: ENABLE_XRAY_TRACING
+              Value: !Ref EnableXrayTracing
           Essential: true
-          Image: subfuzion/colorteller:v2
+          Image: !Ref ColorTellerImage
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -815,7 +851,10 @@ Resources:
           PortMappings:
             - ContainerPort: 8080
               Protocol: tcp
-        - Cpu: 32
+        - Command:
+            - "logLevel"
+            - "warn"
+          Cpu: 32
           Essential: true
           Image: amazon/aws-xray-daemon
           MemoryReservation: 256
@@ -828,7 +867,7 @@ Resources:
             - Name:  "APPMESH_VIRTUAL_NODE_NAME"
               Value: !Sub "mesh/${Name}/virtualNode/green-vn"
             - Name:  "ENABLE_ENVOY_XRAY_TRACING"
-              Value: "1"
+              Value: !Ref EnableXrayTracing
             - Name:  "ENABLE_ENVOY_STATS_TAGS"
               Value: "1"
             - Name:  "ENVOY_LOG_LEVEL"
@@ -952,8 +991,14 @@ Resources:
               Value: "8080"
             - Name: COLOR
               Value: red
+            - Name: ENABLE_XRAY_TRACING
+              Value: !Ref EnableXrayTracing
+            - Name: TEST_RESPONSE_DELAY
+              Value: !Ref RedColorTellerResponseDelay
+            - Name: TEST_PERIODIC_ERROR
+              Value: !Ref RedColorTellerPeriodicError
           Essential: true
-          Image: subfuzion/colorteller:v2
+          Image: !Ref ColorTellerImage
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -966,7 +1011,10 @@ Resources:
           PortMappings:
             - ContainerPort: 8080
               Protocol: tcp
-        - Cpu: 32
+        - Command:
+            - "logLevel"
+            - "warn"
+          Cpu: 32
           Essential: true
           Image: amazon/aws-xray-daemon
           MemoryReservation: 256
@@ -979,7 +1027,7 @@ Resources:
             - Name:  "APPMESH_VIRTUAL_NODE_NAME"
               Value: !Sub "mesh/${Name}/virtualNode/red-vn"
             - Name:  "ENABLE_ENVOY_XRAY_TRACING"
-              Value: "1"
+              Value: !Ref EnableXrayTracing
             - Name:  "ENABLE_ENVOY_STATS_TAGS"
               Value: "1"
             - Name:  "ENVOY_LOG_LEVEL"

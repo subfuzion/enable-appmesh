@@ -8,9 +8,5 @@ if [ -z $COLOR_TELLER_IMAGE ]; then
     exit 1
 fi
 
-# build
 docker build -t $COLOR_TELLER_IMAGE .
-
-# push
-$(aws ecr get-login --no-include-email --region $AWS_DEFAULT_REGION --profile $AWS_DEFAULT_PROFILE)
 docker push $COLOR_TELLER_IMAGE
