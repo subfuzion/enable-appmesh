@@ -9,6 +9,11 @@ Parameters:
     Type: String
     Default: demo
 
+  TaskCount:
+    Description: Desired task count for services
+    Type: Number
+    Default: 3
+
 Resources:
 
   LogGroup:
@@ -542,7 +547,7 @@ Resources:
       DeploymentConfiguration:
         MaximumPercent: 200
         MinimumHealthyPercent: 50
-      DesiredCount: 1
+      DesiredCount: !Ref TaskCount
       EnableECSManagedTags: false
       HealthCheckGracePeriodSeconds: 60
       LaunchType: FARGATE
@@ -747,7 +752,7 @@ Resources:
       DeploymentConfiguration:
         MaximumPercent: 200
         MinimumHealthyPercent: 50
-      DesiredCount: 1
+      DesiredCount: !Ref TaskCount
       EnableECSManagedTags: false
       LaunchType: FARGATE
       NetworkConfiguration:
@@ -898,7 +903,7 @@ Resources:
       DeploymentConfiguration:
         MaximumPercent: 200
         MinimumHealthyPercent: 50
-      DesiredCount: 1
+      DesiredCount: !Ref TaskCount
       EnableECSManagedTags: false
       LaunchType: FARGATE
       NetworkConfiguration:
@@ -1049,7 +1054,7 @@ Resources:
       DeploymentConfiguration:
         MaximumPercent: 200
         MinimumHealthyPercent: 50
-      DesiredCount: 1
+      DesiredCount: !Ref TaskCount
       EnableECSManagedTags: false
       LaunchType: FARGATE
       NetworkConfiguration:
