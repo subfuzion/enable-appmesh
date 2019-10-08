@@ -22,23 +22,22 @@ check_args() {
 }
 
 check_deps() {
-  [[ -z $(which jq) ]] && error "missing required dependency: jq"
+  [[ -z $(command -v jq) ]] && error "missing required dependency: jq"
 }
 
 clear_history() {
   # HACK until implement redis support (assumes no more than a few gateway tasks for now)
   for i in {0..10}; do
-    curl -s $APP/color/clear >/dev/null
+    curl -s "$APP"/color/clear >/dev/null
   done
 
 }
-test_route(){
+test_route() {
   errs=0
-  for i in {0..$TEST_ITERATIONS}; do
+  for ((i=0; i<${TEST_ITERATIONS}; i++)); do
     httpcode=$(curl -so /dev/null -w "%{http_code}" $APP/color)
-    if (( httpcode >= 400 )); then
-      (( errs++ ))
-      (( errs >= ERROR_THRESHOLD )) && return $errs
+    if ((httpcode >= 400)); then
+      ((++errs >= ERROR_THRESHOLD)) && return $errs
     fi
   done
 }
@@ -49,13 +48,12 @@ update_route() {
   local count=$3
 
   print "deploying $file ($i of $count)..."
-  resp=$(aws appmesh update-route \
-    --cli-input-json "file://${file}")
+  resp=$(aws appmesh update-route --cli-input-json "file://${file}")
   (($? == 0)) || error "deploy failed: $file ($i/$count)"
 
   test_route
   errs=$?
-  if (( errs > 0 )); then
+  if ((errs > 0)); then
     print "error count ($errs) exceeds acceptable threshold ($ERROR_THRESHOLD) ... rolling back ..."
     init
     exit $errs
@@ -71,7 +69,9 @@ print() {
 
 rollout() {
   print "starting rollout..."
+  # shellcheck disable=SC2012
   routes=$(ls "${COLOR2}"/blue-and-"${COLOR2}"-rolling-*.json | sort)
+  # shellcheck disable=SC2086
   count=$(echo $routes | wc -w)
   i=1
   for r in $routes; do

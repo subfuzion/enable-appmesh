@@ -1,0 +1,59 @@
+---
+Parameters:
+
+  Name:
+    Description: The primary name to identify this deployment and associated resources (including mesh name)
+    Type: String
+    Default: demo
+
+  VirtualRouterName:
+    Description: Target virtual router name
+    Type: String
+    Default: colorteller-vr
+
+  RouteName:
+    Description: Target route name
+    Type: String
+    Default: color-route
+
+  MatchPrefix:
+    Description: HttpRoute prefix to match
+    Type: String
+    Default: /
+
+  BlueWeight:
+    Description: blue virtual node route weight
+    Type: Number
+    Default: 1
+
+  GreenWeight:
+    Description: green virtual node route weight
+    Type: Number
+    Default: 1
+
+  RedWeight:
+    Description: red virtual node route weight
+    Type: Number
+    Default: 1
+
+Resources:
+  ColorRoute:
+    Type: AWS::AppMesh::Route
+    Properties:
+      MeshName: !Ref Name
+      RouteName: !Ref RouteName
+      Spec:
+        HttpRoute:
+          Action:
+            WeightedTargets:
+              - VirtualNode: blue-vn
+                Weight: !Ref BlueWeight
+              - VirtualNode: green-vn
+                Weight: !Ref GreenWeight
+              - VirtualNode: red-vn
+                Weight: !Ref RedWeight
+          Match:
+            Prefix: !Ref MatchPrefix
+      VirtualRouterName: !Ref VirtualRouterName
+
+
