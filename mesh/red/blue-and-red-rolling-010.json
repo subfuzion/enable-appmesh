@@ -1,0 +1,24 @@
+{
+  "meshName": "demo",
+  "routeName": "color-route",
+  "spec": {
+    "httpRoute": {
+      "action": {
+        "weightedTargets": [
+          {
+            "virtualNode": "blue-vn",
+            "weight": 90
+          },
+          {
+            "virtualNode": "red-vn",
+            "weight": 10
+          }
+        ]
+      },
+      "match": {
+        "prefix": "/"
+      }
+    }
+  },
+  "virtualRouterName": "colorteller-vr"
+}

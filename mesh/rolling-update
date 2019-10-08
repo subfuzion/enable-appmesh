@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+# vim:syn=sh:ts=4:sw=4:et:ai
+
+COLOR1="$1"
+COLOR2="$2"
+
+error() {
+  echo "[ERROR] $1"
+  exit 1
+}
+
+check_env() {
+  [[ -z "$APP" ]] && error "missing environment variable: \$APP (should be URL for the app)"
+}
+
+check_args() {
+  [[ -z "$1" ]] && error "missing first arg: should be initial version (blue|green|red)"
+  [[ -z "$2" ]] && error "missing second arg: should be final version (blue|green|red)"
+}
+
+check_deps() {
+  [[ -z $(which jq) ]] && error "missing required dependency: jq"
+}
+
+test_route(){
+
+}
+
+update_route() {
+  local file=$1
+  local i=$2
+  local count=$3
+
+  print "deploying $file ($i of $count)..."
+  resp=$(aws appmesh update-route \
+    --cli-input-json "file://${file}")
+  (($? == 0)) || error "deploy failed: $file ($i/$count)"
+
+  percent=$(echo "$resp" | jq '.route.spec.httpRoute.action.weightedTargets[] | select(.virtualNode == "'"${COLOR2}"'-vn").weight')
+  print "=> deployment at [$percent%]"
+}
+
+print() {
+  echo "[INFO] $1"
+}
+
+rollout() {
+  routes=$(ls "${COLOR2}"/blue-and-"${COLOR2}"-rolling-*.json | sort)
+  count=$(echo $routes | wc -w)
+  i=1
+  for r in $routes; do
+    update_route $r $i $count
+    ((i++))
+  done
+}
+
+init() {
+  aws appmesh update-route \
+    --cli-input-json "file://${COLOR1}.json" \
+    >/dev/null
+}
+
+main() {
+  check_deps
+  check_env
+  check_args "${COLOR1}" "${COLOR2}"
+  init
+  rollout
+}
+
+main "$@"
