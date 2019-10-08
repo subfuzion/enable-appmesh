@@ -9,12 +9,17 @@ Parameters:
     Type: String
     Default: demo
 
-  TaskCount:
-    Description: Desired task count for services
+  GatewayTaskCount:
+    Description: Desired task count for colorteller service
     Type: Number
-    Default: 3
+    Default: 1
 
-  ColorGatewayImage:
+  ColorTellerTaskCount:
+    Description: Desired task count for colorteller service
+    Type: Number
+    Default: 2
+
+  GatewayImage:
     Description: Docker image for gateway service
     Type: String
     Default: subfuzion/colorgateway:v4
@@ -475,7 +480,7 @@ Resources:
             - Name: ENABLE_XRAY_TRACING
               Value: !Ref EnableXrayTracing
           Essential: true
-          Image: !Ref ColorGatewayImage
+          Image: !Ref GatewayImage
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -576,7 +581,7 @@ Resources:
       DeploymentConfiguration:
         MaximumPercent: 200
         MinimumHealthyPercent: 50
-      DesiredCount: !Ref TaskCount
+      DesiredCount: !Ref GatewayTaskCount
       EnableECSManagedTags: false
       HealthCheckGracePeriodSeconds: 60
       LaunchType: FARGATE
@@ -786,7 +791,7 @@ Resources:
       DeploymentConfiguration:
         MaximumPercent: 200
         MinimumHealthyPercent: 50
-      DesiredCount: !Ref TaskCount
+      DesiredCount: !Ref ColorTellerTaskCount
       EnableECSManagedTags: false
       LaunchType: FARGATE
       NetworkConfiguration:
@@ -942,7 +947,7 @@ Resources:
       DeploymentConfiguration:
         MaximumPercent: 200
         MinimumHealthyPercent: 50
-      DesiredCount: !Ref TaskCount
+      DesiredCount: !Ref ColorTellerTaskCount
       EnableECSManagedTags: false
       LaunchType: FARGATE
       NetworkConfiguration:
@@ -1102,7 +1107,7 @@ Resources:
       DeploymentConfiguration:
         MaximumPercent: 200
         MinimumHealthyPercent: 50
-      DesiredCount: !Ref TaskCount
+      DesiredCount: !Ref ColorTellerTaskCount
       EnableECSManagedTags: false
       LaunchType: FARGATE
       NetworkConfiguration:
