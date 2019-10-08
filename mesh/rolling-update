@@ -4,6 +4,9 @@
 COLOR1="$1"
 COLOR2="$2"
 
+TEST_ITERATIONS=100
+ERROR_THRESHOLD=1
+
 error() {
   echo "[ERROR] $1"
   exit 1
@@ -22,8 +25,22 @@ check_deps() {
   [[ -z $(which jq) ]] && error "missing required dependency: jq"
 }
 
-test_route(){
+clear_history() {
+  # HACK until implement redis support (assumes no more than a few gateway tasks for now)
+  for i in {0..10}; do
+    curl -s $APP/color/clear >/dev/null
+  done
 
+}
+test_route(){
+  errs=0
+  for i in {0..$TEST_ITERATIONS}; do
+    httpcode=$(curl -so /dev/null -w "%{http_code}" $APP/color)
+    if (( httpcode >= 400 )); then
+      (( errs++ ))
+      (( errs >= ERROR_THRESHOLD )) && return $errs
+    fi
+  done
 }
 
 update_route() {
@@ -36,6 +53,14 @@ update_route() {
     --cli-input-json "file://${file}")
   (($? == 0)) || error "deploy failed: $file ($i/$count)"
 
+  test_route
+  errs=$?
+  if (( errs > 0 )); then
+    print "error count ($errs) exceeds acceptable threshold ($ERROR_THRESHOLD) ... rolling back ..."
+    init
+    exit $errs
+  fi
+
   percent=$(echo "$resp" | jq '.route.spec.httpRoute.action.weightedTargets[] | select(.virtualNode == "'"${COLOR2}"'-vn").weight')
   print "=> deployment at [$percent%]"
 }
@@ -45,6 +70,7 @@ print() {
 }
 
 rollout() {
+  print "starting rollout..."
   routes=$(ls "${COLOR2}"/blue-and-"${COLOR2}"-rolling-*.json | sort)
   count=$(echo $routes | wc -w)
   i=1
@@ -58,14 +84,24 @@ init() {
   aws appmesh update-route \
     --cli-input-json "file://${COLOR1}.json" \
     >/dev/null
+
+  clear_history
+}
+
+info() {
+  print "APP=$APP"
+  print "TEST_ITERATIONS=$TEST_ITERATIONS"
+  print "ERROR_THRESHOLD=$ERROR_THRESHOLD"
 }
 
 main() {
   check_deps
   check_env
   check_args "${COLOR1}" "${COLOR2}"
+  info
   init
   rollout
+  clear_history
 }
 
 main "$@"

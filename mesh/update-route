@@ -10,5 +10,5 @@ error() {
 FILE=$1
 
 aws appmesh update-route \
-    --cli-input-json "file://${FILE}"
+    --cli-input-json "file://${FILE}.json"
 
