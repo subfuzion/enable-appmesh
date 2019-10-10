@@ -1,0 +1,1327 @@
+---
+Description: >
+  Fully mesh-enabled Color App demo (with blue, green, and red colorteller backend services).
+
+Parameters:
+
+  Name:
+    Description: The primary name to identify this deployment and associated resources
+    Type: String
+    Default: demo
+
+  GatewayTaskCount:
+    Description: Desired task count for colorteller service
+    Type: Number
+    Default: 1
+
+  ColorTellerTaskCount:
+    Description: Desired task count for colorteller service
+    Type: Number
+    Default: 2
+
+  GatewayImage:
+    Description: Docker image for gateway service
+    Type: String
+    Default: subfuzion/colorgateway:v4
+    # Default: 226767807331.dkr.ecr.us-west-2.amazonaws.com/gateway:latest
+
+  ColorTellerImage:
+    Description: Docker image for colorteller service
+    Type: String
+    Default: subfuzion/colorteller:v4
+    # Default: 226767807331.dkr.ecr.us-west-2.amazonaws.com/colorteller:latest
+
+  RedColorTellerResponseDelay:
+    Description: Inject delays in colorteller responses (in milliseconds)
+    Type: Number
+    Default: 0
+
+  RedColorTellerPeriodicError:
+    Description: Inject periodic errors (HTTP 500) in colorteller responses
+    Type: Number
+    Default: 3 # every 3rd response will be an error
+
+  EnableXrayTracing:
+    Description: Enable X-Ray tracing (0 to disable, 1 to enable)
+    Type: String
+    Default: 1
+
+Resources:
+
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Ref Name
+      RetentionInDays: 1
+    UpdateReplacePolicy: Delete
+    DeletionPolicy: Delete
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      InstanceTenancy: default
+      Tags:
+        - Key: Name
+          Value: !Sub "${Name}/VPC"
+
+  VPCIngressSubnet1Subnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.0.0/24
+      VpcId:
+        Ref: VPC
+      AvailabilityZone:
+        Fn::Select:
+          - 0
+          - Fn::GetAZs: ""
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${Name}/VPC/IngressSubnet1"
+        - Key: aws-cdk:subnet-name
+          Value: ingress
+        - Key: aws-cdk:subnet-type
+          Value: Public
+
+  VPCIngressSubnet1RouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId:
+        Ref: VPC
+      Tags:
+        - Key: Name
+          Value: !Sub "${Name}/VPC/IngressSubnet1"
+
+  VPCIngressSubnet1RouteTableAssociation7700457B:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId:
+        Ref: VPCIngressSubnet1RouteTable
+      SubnetId:
+        Ref: VPCIngressSubnet1Subnet
+
+  VPCIngressSubnet1DefaultRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId:
+        Ref: VPCIngressSubnet1RouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId:
+        Ref: VPCIGW
+    DependsOn:
+      - VPCVPCGW
+
+  VPCIngressSubnet1EIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  VPCIngressSubnet1NATGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId:
+        Fn::GetAtt:
+          - VPCIngressSubnet1EIP
+          - AllocationId
+      SubnetId:
+        Ref: VPCIngressSubnet1Subnet
+      Tags:
+        - Key: Name
+          Value: !Sub "${Name}/VPC/IngressSubnet1"
+
+  VPCIngressSubnet2Subnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.1.0/24
+      VpcId:
+        Ref: VPC
+      AvailabilityZone:
+        Fn::Select:
+          - 1
+          - Fn::GetAZs: ""
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${Name}/VPC/IngressSubnet2"
+        - Key: aws-cdk:subnet-name
+          Value: ingress
+        - Key: aws-cdk:subnet-type
+          Value: Public
+
+  VPCIngressSubnet2RouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId:
+        Ref: VPC
+      Tags:
+        - Key: Name
+          Value: !Sub "${Name}/VPC/IngressSubnet2"
+
+  VPCIngressSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId:
+        Ref: VPCIngressSubnet2RouteTable
+      SubnetId:
+        Ref: VPCIngressSubnet2Subnet
+
+  VPCIngressSubnet2DefaultRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId:
+        Ref: VPCIngressSubnet2RouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId:
+        Ref: VPCIGW
+    DependsOn:
+      - VPCVPCGW
+
+  VPCIngressSubnet2EIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  VPCIngressSubnet2NATGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId:
+        Fn::GetAtt:
+          - VPCIngressSubnet2EIP
+          - AllocationId
+      SubnetId:
+        Ref: VPCIngressSubnet2Subnet
+      Tags:
+        - Key: Name
+          Value: !Sub "${Name}/VPC/IngressSubnet2"
+
+  VPCApplicationSubnet1Subnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.2.0/24
+      VpcId:
+        Ref: VPC
+      AvailabilityZone:
+        Fn::Select:
+          - 0
+          - Fn::GetAZs: ""
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub "${Name}/VPC/applicationSubnet1"
+        - Key: aws-cdk:subnet-name
+          Value: application
+        - Key: aws-cdk:subnet-type
+          Value: Private
+
+  VPCApplicationSubnet1RouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId:
+        Ref: VPC
+      Tags:
+        - Key: Name
+          Value: !Sub "${Name}/VPC/applicationSubnet1"
+
+  VPCApplicationSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId:
+        Ref: VPCApplicationSubnet1RouteTable
+      SubnetId:
+        Ref: VPCApplicationSubnet1Subnet
+
+  VPCApplicationSubnet1DefaultRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId:
+        Ref: VPCApplicationSubnet1RouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId:
+        Ref: VPCIngressSubnet1NATGateway
+
+  VPCApplicationSubnet2Subnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.3.0/24
+      VpcId:
+        Ref: VPC
+      AvailabilityZone:
+        Fn::Select:
+          - 1
+          - Fn::GetAZs: ""
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub "${Name}/VPC/applicationSubnet2"
+        - Key: aws-cdk:subnet-name
+          Value: application
+        - Key: aws-cdk:subnet-type
+          Value: Private
+
+  VPCApplicationSubnet2RouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId:
+        Ref: VPC
+      Tags:
+        - Key: Name
+          Value: !Sub "${Name}/VPC/applicationSubnet2"
+
+  VPCApplicationSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId:
+        Ref: VPCApplicationSubnet2RouteTable
+      SubnetId:
+        Ref: VPCApplicationSubnet2Subnet
+
+  VPCApplicationSubnet2DefaultRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId:
+        Ref: VPCApplicationSubnet2RouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId:
+        Ref: VPCIngressSubnet2NATGateway
+
+  VPCIGW:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub "${Name}/VPC"
+
+  VPCVPCGW:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId:
+        Ref: VPC
+      InternetGatewayId:
+        Ref: VPCIGW
+
+  ExternalSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub "${Name}/ExternalSG"
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          Description: Allow all outbound traffic by default
+          IpProtocol: "-1"
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/0
+          Description: from 0.0.0.0/0:80
+          FromPort: 80
+          IpProtocol: tcp
+          ToPort: 80
+      VpcId:
+        Ref: VPC
+
+  InternalSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub "${Name}/InternalSG"
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          Description: Allow all outbound traffic by default
+          IpProtocol: "-1"
+      VpcId:
+        Ref: VPC
+
+  InternalSGFromDemoInternalSG8080:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      Description: from demoInternalSG:8080
+      FromPort: 8080
+      GroupId:
+        Fn::GetAtt:
+          - InternalSG
+          - GroupId
+      SourceSecurityGroupId:
+        Fn::GetAtt:
+          - InternalSG
+          - GroupId
+      ToPort: 8080
+
+  InternalSGFromDemoInternalSG9901:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      Description: from demoInternalSG:9901
+      FromPort: 9901
+      GroupId:
+        Fn::GetAtt:
+          - InternalSG
+          - GroupId
+      SourceSecurityGroupId:
+        Fn::GetAtt:
+          - InternalSG
+          - GroupId
+      ToPort: 9901
+
+  InternalSGFromDemoInternalSG15000:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      Description: from demoInternalSG:15000
+      FromPort: 15000
+      GroupId:
+        Fn::GetAtt:
+          - InternalSG
+          - GroupId
+      SourceSecurityGroupId:
+        Fn::GetAtt:
+          - InternalSG
+          - GroupId
+      ToPort: 15000
+
+  InternalSGFromDemoExternalSG8080:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      IpProtocol: tcp
+      Description: Load balancer to target
+      FromPort: 8080
+      GroupId:
+        Fn::GetAtt:
+          - InternalSG
+          - GroupId
+      SourceSecurityGroupId:
+        Fn::GetAtt:
+          - ExternalSG
+          - GroupId
+      ToPort: 8080
+
+  Cluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Ref Name
+
+  ClusterDefaultServiceDiscoveryNamespace:
+    Type: AWS::ServiceDiscovery::PrivateDnsNamespace
+    Properties:
+      Name: mesh.local
+      Vpc:
+        Ref: VPC
+
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+        Version: "2012-10-17"
+      ManagedPolicyArns:
+        - Fn::Join:
+            - ""
+            - - "arn:"
+              - Ref: AWS::Partition
+              - :iam::aws:policy/CloudWatchLogsFullAccess
+        - Fn::Join:
+            - ""
+            - - "arn:"
+              - Ref: AWS::Partition
+              - :iam::aws:policy/AWSXRayDaemonWriteAccess
+        - Fn::Join:
+            - ""
+            - - "arn:"
+              - Ref: AWS::Partition
+              - :iam::aws:policy/AWSAppMeshEnvoyAccess
+
+  TaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+        Version: "2012-10-17"
+      ManagedPolicyArns:
+        - Fn::Join:
+            - ""
+            - - "arn:"
+              - Ref: AWS::Partition
+              - :iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+
+  TaskExecutionRoleDefaultPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Action:
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Effect: Allow
+            Resource:
+              Fn::GetAtt:
+                - LogGroup
+                - Arn
+        Version: "2012-10-17"
+      PolicyName: TaskExecutionRoleDefaultPolicy
+      Roles:
+        - Ref: TaskExecutionRole
+
+  GatewayTaskDef:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      ContainerDefinitions:
+        - Environment:
+            - Name: SERVER_PORT
+              Value: "8080"
+            - Name: COLOR_TELLER_ENDPOINT
+              Value: colorteller.mesh.local:8080
+            - Name: ENABLE_XRAY_TRACING
+              Value: !Ref EnableXrayTracing
+          Essential: true
+          Image: !Ref GatewayImage
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group:
+                Ref: LogGroup
+              awslogs-stream-prefix: gateway
+              awslogs-region:
+                Ref: AWS::Region
+          Name: app
+          PortMappings:
+            - ContainerPort: 8080
+              Protocol: tcp
+        - Cpu: 32
+          Essential: true
+          Image: amazon/aws-xray-daemon
+          MemoryReservation: 256
+          Name: xray
+          PortMappings:
+            - ContainerPort: 2000
+              Protocol: udp
+          User: "1337"
+        - Environment:
+            - Name:  "APPMESH_VIRTUAL_NODE_NAME"
+              Value: !Sub "mesh/${Name}/virtualNode/gateway-vn"
+            - Name:  "ENABLE_ENVOY_XRAY_TRACING"
+              Value: !Ref EnableXrayTracing
+            - Name:  "ENABLE_ENVOY_STATS_TAGS"
+              Value: "1"
+            - Name:  "ENVOY_LOG_LEVEL"
+              Value: "debug"
+          Essential: true
+          HealthCheck:
+            Command:
+              - "CMD-SHELL"
+              - "curl -s http://localhost:9901/server_info | grep state | grep -q LIVE"
+            Interval: 5
+            Timeout: 2
+            Retries: 3
+          Image: subfuzion/aws-appmesh-envoy:v1.11.1.1
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group:
+                Ref: LogGroup
+              awslogs-stream-prefix: gateway
+              awslogs-region:
+                Ref: AWS::Region
+          Memory: 500
+          Name: envoy
+          User: "1337"
+          Ulimits:
+            - Name: "nofile"
+              HardLimit: 15000
+              SoftLimit: 15000
+          PortMappings:
+            - ContainerPort: 9901
+              Protocol: "tcp"
+            - ContainerPort: 15000
+              Protocol: "tcp"
+            - ContainerPort: 15001
+              Protocol: "tcp"
+      Cpu: "512"
+      ExecutionRoleArn:
+        Fn::GetAtt:
+          - TaskExecutionRole
+          - Arn
+      Family: gateway
+      Memory: "1024"
+      NetworkMode: awsvpc
+      ProxyConfiguration:
+        Type: "APPMESH"
+        ContainerName: "envoy"
+        ProxyConfigurationProperties:
+          - Name: "AppPorts"
+            Value: "8080"
+          - Name: "EgressIgnoredIPs"
+            Value: "169.254.170.2,169.254.169.254"
+          - Name: "IgnoredUID"
+            Value: "1337"
+          - Name: "ProxyEgressPort"
+            Value: "15001"
+          - Name: "ProxyIngressPort"
+            Value: "15000"
+      RequiresCompatibilities:
+        - FARGATE
+      TaskRoleArn:
+        Fn::GetAtt:
+          - TaskRole
+          - Arn
+
+  GatewayService:
+    Type: AWS::ECS::Service
+    Properties:
+      TaskDefinition:
+        Ref: GatewayTaskDef
+      Cluster:
+        Ref: Cluster
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 50
+      DesiredCount: !Ref GatewayTaskCount
+      EnableECSManagedTags: false
+      HealthCheckGracePeriodSeconds: 60
+      LaunchType: FARGATE
+      LoadBalancers:
+        - ContainerName: app
+          ContainerPort: 8080
+          TargetGroupArn:
+            Ref: PublicALBwebTargetGroup
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          SecurityGroups:
+            - Fn::GetAtt:
+                - InternalSG
+                - GroupId
+          Subnets:
+            - Ref: VPCApplicationSubnet1Subnet
+            - Ref: VPCApplicationSubnet2Subnet
+      ServiceName: gateway
+      ServiceRegistries:
+        - RegistryArn:
+            Fn::GetAtt:
+              - GatewayServiceCloudmapService
+              - Arn
+    DependsOn:
+      - PublicALBweb
+      - PublicALBwebTargetGroup
+
+  GatewayServiceCloudmapService:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      DnsConfig:
+        DnsRecords:
+          - TTL: 60
+            Type: A
+        NamespaceId:
+          Fn::GetAtt:
+            - ClusterDefaultServiceDiscoveryNamespace
+            - Id
+        RoutingPolicy: MULTIVALUE
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+      Name: gateway
+      NamespaceId:
+        Fn::GetAtt:
+          - ClusterDefaultServiceDiscoveryNamespace
+          - Id
+
+  PublicALB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internet-facing
+      SecurityGroups:
+        - Fn::GetAtt:
+            - ExternalSG
+            - GroupId
+      Subnets:
+        - Ref: VPCIngressSubnet1Subnet
+        - Ref: VPCIngressSubnet2Subnet
+      Type: application
+    DependsOn:
+      - VPCIngressSubnet1DefaultRoute
+      - VPCIngressSubnet2DefaultRoute
+
+  PublicALBweb:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - TargetGroupArn:
+            Ref: PublicALBwebTargetGroup
+          Type: forward
+      LoadBalancerArn:
+        Ref: PublicALB
+      Port: 80
+      Protocol: HTTP
+
+  PublicALBwebTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: 10
+      HealthCheckPath: /ping
+      HealthCheckPort: traffic-port
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      Matcher:
+        HttpCode: 200-499
+      Port: 80
+      Protocol: HTTP
+      TargetType: ip
+      UnhealthyThresholdCount: 2
+      VpcId:
+        Ref: VPC
+
+  BlueTaskDef:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      ContainerDefinitions:
+        - Environment:
+            - Name: SERVER_PORT
+              Value: "8080"
+            - Name: COLOR
+              Value: blue
+            - Name: ENABLE_XRAY_TRACING
+              Value: !Ref EnableXrayTracing
+          Essential: true
+          Image: !Ref ColorTellerImage
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group:
+                Ref: LogGroup
+              awslogs-stream-prefix: colorteller-blue
+              awslogs-region:
+                Ref: AWS::Region
+          Name: app
+          PortMappings:
+            - ContainerPort: 8080
+              Protocol: tcp
+        - Command:
+            - "logLevel"
+            - "warn"
+          Cpu: 32
+          Essential: true
+          Image: amazon/aws-xray-daemon
+          MemoryReservation: 256
+          Name: xray
+          PortMappings:
+            - ContainerPort: 2000
+              Protocol: udp
+          User: "1337"
+        - Environment:
+            - Name:  "APPMESH_VIRTUAL_NODE_NAME"
+              Value: !Sub "mesh/${Name}/virtualNode/blue-vn"
+            - Name:  "ENABLE_ENVOY_XRAY_TRACING"
+              Value: !Ref EnableXrayTracing
+            - Name:  "ENABLE_ENVOY_STATS_TAGS"
+              Value: "1"
+            - Name:  "ENVOY_LOG_LEVEL"
+              Value: "debug"
+          Essential: true
+          HealthCheck:
+            Command:
+              - "CMD-SHELL"
+              - "curl -s http://localhost:9901/server_info | grep state | grep -q LIVE"
+            Interval: 5
+            Timeout: 2
+            Retries: 3
+          Image: subfuzion/aws-appmesh-envoy:v1.11.1.1
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group:
+                Ref: LogGroup
+              awslogs-stream-prefix: blue
+              awslogs-region:
+                Ref: AWS::Region
+          Memory: 500
+          Name: envoy
+          User: "1337"
+          Ulimits:
+            - Name: "nofile"
+              HardLimit: 15000
+              SoftLimit: 15000
+          PortMappings:
+            - ContainerPort: 9901
+              Protocol: "tcp"
+            - ContainerPort: 15000
+              Protocol: "tcp"
+            - ContainerPort: 15001
+              Protocol: "tcp"
+      Cpu: "512"
+      ExecutionRoleArn:
+        Fn::GetAtt:
+          - TaskExecutionRole
+          - Arn
+      Family: blue
+      Memory: "1024"
+      NetworkMode: awsvpc
+      ProxyConfiguration:
+        Type: "APPMESH"
+        ContainerName: "envoy"
+        ProxyConfigurationProperties:
+          - Name: "AppPorts"
+            Value: "8080"
+          - Name: "EgressIgnoredIPs"
+            Value: "169.254.170.2,169.254.169.254"
+          - Name: "IgnoredUID"
+            Value: "1337"
+          - Name: "ProxyEgressPort"
+            Value: "15001"
+          - Name: "ProxyIngressPort"
+            Value: "15000"
+      RequiresCompatibilities:
+        - FARGATE
+      TaskRoleArn:
+        Fn::GetAtt:
+          - TaskRole
+          - Arn
+
+  ColorTellerServiceBlueService:
+    Type: AWS::ECS::Service
+    Properties:
+      TaskDefinition:
+        Ref: BlueTaskDef
+      Cluster:
+        Ref: Cluster
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 50
+      DesiredCount: !Ref ColorTellerTaskCount
+      EnableECSManagedTags: false
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          SecurityGroups:
+            - Fn::GetAtt:
+                - InternalSG
+                - GroupId
+          Subnets:
+            - Ref: VPCApplicationSubnet1Subnet
+            - Ref: VPCApplicationSubnet2Subnet
+      ServiceName: colorteller
+      ServiceRegistries:
+        - RegistryArn:
+            Fn::GetAtt:
+              - ColorTellerServiceBlueCloudmapService
+              - Arn
+
+  ColorTellerServiceBlueCloudmapService:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      DnsConfig:
+        DnsRecords:
+          - TTL: 60
+            Type: A
+        NamespaceId:
+          Fn::GetAtt:
+            - ClusterDefaultServiceDiscoveryNamespace
+            - Id
+        RoutingPolicy: MULTIVALUE
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+      Name: colorteller
+      NamespaceId:
+        Fn::GetAtt:
+          - ClusterDefaultServiceDiscoveryNamespace
+          - Id
+
+  GreenTaskDef:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      ContainerDefinitions:
+        - Environment:
+            - Name: SERVER_PORT
+              Value: "8080"
+            - Name: COLOR
+              Value: green
+            - Name: ENABLE_XRAY_TRACING
+              Value: !Ref EnableXrayTracing
+          Essential: true
+          Image: !Ref ColorTellerImage
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group:
+                Ref: LogGroup
+              awslogs-stream-prefix: colorteller-green
+              awslogs-region:
+                Ref: AWS::Region
+          Name: app
+          PortMappings:
+            - ContainerPort: 8080
+              Protocol: tcp
+        - Command:
+            - "logLevel"
+            - "warn"
+          Cpu: 32
+          Essential: true
+          Image: amazon/aws-xray-daemon
+          MemoryReservation: 256
+          Name: xray
+          PortMappings:
+            - ContainerPort: 2000
+              Protocol: udp
+          User: "1337"
+        - Environment:
+            - Name:  "APPMESH_VIRTUAL_NODE_NAME"
+              Value: !Sub "mesh/${Name}/virtualNode/green-vn"
+            - Name:  "ENABLE_ENVOY_XRAY_TRACING"
+              Value: !Ref EnableXrayTracing
+            - Name:  "ENABLE_ENVOY_STATS_TAGS"
+              Value: "1"
+            - Name:  "ENVOY_LOG_LEVEL"
+              Value: "debug"
+          Essential: true
+          HealthCheck:
+            Command:
+              - "CMD-SHELL"
+              - "curl -s http://localhost:9901/server_info | grep state | grep -q LIVE"
+            Interval: 5
+            Timeout: 2
+            Retries: 3
+          Image: subfuzion/aws-appmesh-envoy:v1.11.1.1
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group:
+                Ref: LogGroup
+              awslogs-stream-prefix: green
+              awslogs-region:
+                Ref: AWS::Region
+          Memory: 500
+          Name: envoy
+          User: "1337"
+          Ulimits:
+            - Name: "nofile"
+              HardLimit: 15000
+              SoftLimit: 15000
+          PortMappings:
+            - ContainerPort: 9901
+              Protocol: "tcp"
+            - ContainerPort: 15000
+              Protocol: "tcp"
+            - ContainerPort: 15001
+              Protocol: "tcp"
+      Cpu: "512"
+      ExecutionRoleArn:
+        Fn::GetAtt:
+          - TaskExecutionRole
+          - Arn
+      Family: green
+      Memory: "1024"
+      NetworkMode: awsvpc
+      ProxyConfiguration:
+        Type: "APPMESH"
+        ContainerName: "envoy"
+        ProxyConfigurationProperties:
+          - Name: "AppPorts"
+            Value: "8080"
+          - Name: "EgressIgnoredIPs"
+            Value: "169.254.170.2,169.254.169.254"
+          - Name: "IgnoredUID"
+            Value: "1337"
+          - Name: "ProxyEgressPort"
+            Value: "15001"
+          - Name: "ProxyIngressPort"
+            Value: "15000"
+      RequiresCompatibilities:
+        - FARGATE
+      TaskRoleArn:
+        Fn::GetAtt:
+          - TaskRole
+          - Arn
+
+  ColorTellerServiceGreenService:
+    Type: AWS::ECS::Service
+    Properties:
+      TaskDefinition:
+        Ref: GreenTaskDef
+      Cluster:
+        Ref: Cluster
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 50
+      DesiredCount: !Ref ColorTellerTaskCount
+      EnableECSManagedTags: false
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          SecurityGroups:
+            - Fn::GetAtt:
+                - InternalSG
+                - GroupId
+          Subnets:
+            - Ref: VPCApplicationSubnet1Subnet
+            - Ref: VPCApplicationSubnet2Subnet
+      ServiceName: colorteller-green
+      ServiceRegistries:
+        - RegistryArn:
+            Fn::GetAtt:
+              - ColorTellerServiceGreenCloudmapService
+              - Arn
+
+  ColorTellerServiceGreenCloudmapService:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      DnsConfig:
+        DnsRecords:
+          - TTL: 60
+            Type: A
+        NamespaceId:
+          Fn::GetAtt:
+            - ClusterDefaultServiceDiscoveryNamespace
+            - Id
+        RoutingPolicy: MULTIVALUE
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+      Name: colorteller-green
+      NamespaceId:
+        Fn::GetAtt:
+          - ClusterDefaultServiceDiscoveryNamespace
+          - Id
+
+  RedTaskDef:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      ContainerDefinitions:
+        - Environment:
+            - Name: SERVER_PORT
+              Value: "8080"
+            - Name: COLOR
+              Value: red
+            - Name: ENABLE_XRAY_TRACING
+              Value: !Ref EnableXrayTracing
+            - Name: TEST_RESPONSE_DELAY
+              Value: !Ref RedColorTellerResponseDelay
+            - Name: TEST_PERIODIC_ERROR
+              Value: !Ref RedColorTellerPeriodicError
+          Essential: true
+          Image: !Ref ColorTellerImage
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group:
+                Ref: LogGroup
+              awslogs-stream-prefix: colorteller-red
+              awslogs-region:
+                Ref: AWS::Region
+          Name: app
+          PortMappings:
+            - ContainerPort: 8080
+              Protocol: tcp
+        - Command:
+            - "logLevel"
+            - "warn"
+          Cpu: 32
+          Essential: true
+          Image: amazon/aws-xray-daemon
+          MemoryReservation: 256
+          Name: xray
+          PortMappings:
+            - ContainerPort: 2000
+              Protocol: udp
+          User: "1337"
+        - Environment:
+            - Name:  "APPMESH_VIRTUAL_NODE_NAME"
+              Value: !Sub "mesh/${Name}/virtualNode/red-vn"
+            - Name:  "ENABLE_ENVOY_XRAY_TRACING"
+              Value: !Ref EnableXrayTracing
+            - Name:  "ENABLE_ENVOY_STATS_TAGS"
+              Value: "1"
+            - Name:  "ENVOY_LOG_LEVEL"
+              Value: "debug"
+          Essential: true
+          HealthCheck:
+            Command:
+              - "CMD-SHELL"
+              - "curl -s http://localhost:9901/server_info | grep state | grep -q LIVE"
+            Interval: 5
+            Timeout: 2
+            Retries: 3
+          Image: subfuzion/aws-appmesh-envoy:v1.11.1.1
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group:
+                Ref: LogGroup
+              awslogs-stream-prefix: red
+              awslogs-region:
+                Ref: AWS::Region
+          Memory: 500
+          Name: envoy
+          User: "1337"
+          Ulimits:
+            - Name: "nofile"
+              HardLimit: 15000
+              SoftLimit: 15000
+          PortMappings:
+            - ContainerPort: 9901
+              Protocol: "tcp"
+            - ContainerPort: 15000
+              Protocol: "tcp"
+            - ContainerPort: 15001
+              Protocol: "tcp"
+      Cpu: "512"
+      ExecutionRoleArn:
+        Fn::GetAtt:
+          - TaskExecutionRole
+          - Arn
+      Family: red
+      Memory: "1024"
+      NetworkMode: awsvpc
+      ProxyConfiguration:
+        Type: "APPMESH"
+        ContainerName: "envoy"
+        ProxyConfigurationProperties:
+          - Name: "AppPorts"
+            Value: "8080"
+          - Name: "EgressIgnoredIPs"
+            Value: "169.254.170.2,169.254.169.254"
+          - Name: "IgnoredUID"
+            Value: "1337"
+          - Name: "ProxyEgressPort"
+            Value: "15001"
+          - Name: "ProxyIngressPort"
+            Value: "15000"
+      RequiresCompatibilities:
+        - FARGATE
+      TaskRoleArn:
+        Fn::GetAtt:
+          - TaskRole
+          - Arn
+
+  ColorTellerServiceRedService:
+    Type: AWS::ECS::Service
+    Properties:
+      TaskDefinition:
+        Ref: RedTaskDef
+      Cluster:
+        Ref: Cluster
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 50
+      DesiredCount: !Ref ColorTellerTaskCount
+      EnableECSManagedTags: false
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          SecurityGroups:
+            - Fn::GetAtt:
+                - InternalSG
+                - GroupId
+          Subnets:
+            - Ref: VPCApplicationSubnet1Subnet
+            - Ref: VPCApplicationSubnet2Subnet
+      ServiceName: colorteller-red
+      ServiceRegistries:
+        - RegistryArn:
+            Fn::GetAtt:
+              - ColorTellerServiceRedCloudmapService
+              - Arn
+
+  ColorTellerServiceRedCloudmapService:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      DnsConfig:
+        DnsRecords:
+          - TTL: 60
+            Type: A
+        NamespaceId:
+          Fn::GetAtt:
+            - ClusterDefaultServiceDiscoveryNamespace
+            - Id
+        RoutingPolicy: MULTIVALUE
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+      Name: colorteller-red
+      NamespaceId:
+        Fn::GetAtt:
+          - ClusterDefaultServiceDiscoveryNamespace
+          - Id
+
+  Mesh:
+    Type: AWS::AppMesh::Mesh
+    Properties:
+      MeshName: !Ref Name
+
+  GatewayVN:
+    Type: AWS::AppMesh::VirtualNode
+    Properties:
+      MeshName: !Ref Name
+      Spec:
+        Backends:
+          - VirtualService:
+              VirtualServiceName: colorteller.mesh.local
+        Listeners:
+          - HealthCheck:
+              HealthyThreshold: 2
+              IntervalMillis: 10000
+              Path: /ping
+              Port: 8080
+              Protocol: http
+              TimeoutMillis: 5000
+              UnhealthyThreshold: 2
+            PortMapping:
+              Port: 8080
+              Protocol: http
+        ServiceDiscovery:
+          AWSCloudMap:
+            Attributes:
+              - Key: ECS_TASK_DEFINITION_FAMILY
+                Value: gateway
+            NamespaceName: mesh.local
+            ServiceName: gateway
+      VirtualNodeName: gateway-vn
+    DependsOn:
+      - Mesh
+
+  BlueVN:
+    Type: AWS::AppMesh::VirtualNode
+    Properties:
+      MeshName: !Ref Name
+      Spec:
+        Listeners:
+          - HealthCheck:
+              HealthyThreshold: 2
+              IntervalMillis: 10000
+              Path: /ping
+              Port: 8080
+              Protocol: http
+              TimeoutMillis: 5000
+              UnhealthyThreshold: 2
+            PortMapping:
+              Port: 8080
+              Protocol: http
+        ServiceDiscovery:
+          AWSCloudMap:
+            Attributes:
+              - Key: ECS_TASK_DEFINITION_FAMILY
+                Value: blue
+            NamespaceName: mesh.local
+            ServiceName: colorteller
+      VirtualNodeName: blue-vn
+    DependsOn:
+      - Mesh
+
+  GreenVN:
+    Type: AWS::AppMesh::VirtualNode
+    Properties:
+      MeshName: !Ref Name
+      Spec:
+        Listeners:
+          - HealthCheck:
+              HealthyThreshold: 2
+              IntervalMillis: 10000
+              Path: /ping
+              Port: 8080
+              Protocol: http
+              TimeoutMillis: 5000
+              UnhealthyThreshold: 2
+            PortMapping:
+              Port: 8080
+              Protocol: http
+        ServiceDiscovery:
+          AWSCloudMap:
+            Attributes:
+              - Key: ECS_TASK_DEFINITION_FAMILY
+                Value: green
+            NamespaceName: mesh.local
+            ServiceName: colorteller-green
+      VirtualNodeName: green-vn
+    DependsOn:
+      - Mesh
+
+  RedVN:
+    Type: AWS::AppMesh::VirtualNode
+    Properties:
+      MeshName: !Ref Name
+      Spec:
+        Listeners:
+          - HealthCheck:
+              HealthyThreshold: 2
+              IntervalMillis: 10000
+              Path: /ping
+              Port: 8080
+              Protocol: http
+              TimeoutMillis: 5000
+              UnhealthyThreshold: 2
+            PortMapping:
+              Port: 8080
+              Protocol: http
+        ServiceDiscovery:
+          AWSCloudMap:
+            Attributes:
+              - Key: ECS_TASK_DEFINITION_FAMILY
+                Value: red
+            NamespaceName: mesh.local
+            ServiceName: colorteller-red
+      VirtualNodeName: red-vn
+    DependsOn:
+      - Mesh
+
+  ColorTellerVirtualRouter:
+    Type: AWS::AppMesh::VirtualRouter
+    Properties:
+      MeshName: !Ref Name
+      Spec:
+        Listeners:
+          - PortMapping:
+              Port: 8080
+              Protocol: http
+      VirtualRouterName: colorteller-vr
+    DependsOn:
+      - Mesh
+
+  ColorRoute:
+    Type: AWS::AppMesh::Route
+    Properties:
+      MeshName: !Ref Name
+      RouteName: color-route
+      Spec:
+        HttpRoute:
+          Action:
+            WeightedTargets:
+              - VirtualNode: blue-vn
+                Weight: 1
+              - VirtualNode: green-vn
+                Weight: 1
+          Match:
+            Prefix: /
+      VirtualRouterName: colorteller-vr
+    DependsOn:
+      - ColorTellerVirtualRouter
+
+  ColorTellerVirtualService:
+    Type: AWS::AppMesh::VirtualService
+    Properties:
+      MeshName: !Ref Name
+      Spec:
+        Provider:
+          VirtualRouter:
+            VirtualRouterName: colorteller-vr
+      VirtualServiceName: colorteller.mesh.local
+    DependsOn:
+      - ColorTellerVirtualRouter
+
+Outputs:
+
+  URL:
+    Description: "Public URL:"
+    Value:
+      Fn::GetAtt:
+        - PublicALB
+        - DNSName
+
+  ClusterName:
+    Description: "ECS Cluster name:"
+    Value: !Ref Cluster
+
+
