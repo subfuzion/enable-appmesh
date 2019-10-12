@@ -16,12 +16,12 @@ limitations under the License.
 package main
 
 import (
-	"fmt"
 	"github.com/spf13/cobra"
-	"github.com/subfuzion/meshdemo/internal/configuration"
-	"github.com/subfuzion/meshdemo/internal/template"
-	"github.com/subfuzion/meshdemo/pkg/fs"
+
+	_ "github.com/subfuzion/meshdemo/internal/aws"
 	"github.com/subfuzion/meshdemo/pkg/io"
+
+	"github.com/subfuzion/meshdemo/internal/configuration"
 )
 
 func init() {
@@ -54,36 +54,20 @@ var cmd = &cobra.Command{
 	},
 }
 
-
 var configCmd = &cobra.Command{
 	Use:   "config",
 	Short: "Print config file in use",
 	Run: func(cmd *cobra.Command, args []string) {
-		c := configuration.ConfigFileUsed()
-		if c == "" {
-			c = "(no config found; try `config create`)"
-		}
-		io.Info("Current config file: %s", c)
+		io.Info("configcalled")
 	},
 }
 
 var createCmd = &cobra.Command{
 	Use:   "create",
 	Short: "Create a config file",
-	Args: cobra.ExactArgs(1),
+	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		f := args[0]
-		err := fs.EnsureFile(f)
-		if err != nil {
-			io.Fatal(1, "can't create file: %s", err)
-		}
-		io.Step("creating config file: %s", f)
-		io.Step("creating config file: %s", f)
-		io.Step("creating config file: %s", f)
-		io.Status("created config file: %s", f)
-		io.Success("created config file: %s", f)
-		io.Warn("created config file: %s", f)
-		io.Alert("created config file: %s", f)
+		io.Info("create called")
 	},
 }
 
@@ -91,9 +75,6 @@ var deployCmd = &cobra.Command{
 	Use:   "deploy",
 	Short: "A brief description of your command",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("deploy called")
-		s := template.Read("./demo.yaml")
-		io.Printf(s)
+		io.Info("deploy called")
 	},
 }
-

@@ -93,4 +93,3 @@ func Status(format string, a ...interface{}) {
 	Printf(statusPrefix)
 	Println(format, a...)
 }
-

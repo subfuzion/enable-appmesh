@@ -1324,4 +1324,3 @@ Outputs:
     Description: "ECS Cluster name:"
     Value: !Ref Cluster
 
-
