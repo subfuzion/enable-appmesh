@@ -22,7 +22,7 @@ import (
 )
 
 // StackCmd represents the stack command
-var StackCmd = &cobra.Command{
+var Cmd = &cobra.Command{
 	Use:   "stack",
 	Short: "A brief description of your command",
 	Long: `A fuller description of your command`,
@@ -35,5 +35,5 @@ func init() {
 //	cmd.RootCmd.AddCommand(stackCmd)
 	// stackCmd.PersistentFlags().String("foo", "", "A help for foo")
 	// stackCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
-	StackCmd.AddCommand(deployCmd)
+	Cmd.AddCommand(deployCmd)
 }

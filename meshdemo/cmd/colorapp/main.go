@@ -15,12 +15,6 @@ limitations under the License.
 */
 package main
 
-import (
-  "github.com/subfuzion/meshdemo/cmd/colorapp/cmd"
-//  _ "github.com/subfuzion/meshdemo/cmd/colorapp/cmd/stack"
-)
-
-
 func main() {
   cmd.Execute()
 }

@@ -48,8 +48,8 @@ func init() {
 	RootCmd.PersistentFlags().StringVar(&configuration.ConfigFile, "config", "", "config file (default is $HOME/.colorapp.yaml)")
 	RootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 
-	RootCmd.AddCommand(config.ConfigCmd)
-	RootCmd.AddCommand(stack.StackCmd)
+	RootCmd.AddCommand(config.Cmd)
+	RootCmd.AddCommand(stack.Cmd)
 
 }
 

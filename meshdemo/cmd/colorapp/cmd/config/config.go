@@ -22,7 +22,7 @@ import (
 )
 
 // ConfigCmd represents the config command
-var ConfigCmd = &cobra.Command{
+var Cmd = &cobra.Command{
 	Use:   "config",
 	Short: "Print config file in use",
 	Long: `Print the config file in use`,
@@ -36,5 +36,5 @@ var ConfigCmd = &cobra.Command{
 }
 
 func init() {
-	ConfigCmd.AddCommand(createCmd)
+	Cmd.AddCommand(createCmd)
 }
