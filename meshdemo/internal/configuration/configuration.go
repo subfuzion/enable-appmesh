@@ -1,12 +1,13 @@
 /*
  Package config is a utility wrapper over cobra and viper to keep streamline the logic inside the CLI implementation.
- */
+*/
 package configuration
 
 import (
 	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+
 	"github.com/subfuzion/meshdemo/pkg/io"
 )
 
@@ -36,7 +37,12 @@ func initConfig() {
 
 	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err != nil {
-		io.Error("error reading %s:\n%s", viper.ConfigFileUsed(), err)
+		switch err.(type) {
+		case viper.ConfigFileNotFoundError:
+			// ignore expected error if user has not yet created a config
+		default:
+			io.Error("error reading %s:\n%s", viper.ConfigFileUsed(), err)
+		}
 	}
 }
 
