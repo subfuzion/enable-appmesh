@@ -29,7 +29,7 @@ import (
 // Command sets up the entire CLI command structure.
 // It returns the root command.
 func Command() *cobra.Command {
-	cmd := &cobra.Command{
+	var cmd = &cobra.Command{
 		Use:   "colorapp",
 		Short: "CLI for demonstrating App Mesh",
 		Run: func(cmd *cobra.Command, args []string) {
@@ -48,6 +48,7 @@ func Command() *cobra.Command {
 				io.Info("config called")
 			},
 		}
+		// TODO: config specific flags
 		return cmd
 	})())
 
@@ -61,6 +62,7 @@ func Command() *cobra.Command {
 				io.Info("create called")
 			},
 		}
+		// TODO: create specific flags
 		return cmd
 	})())
 
@@ -69,7 +71,7 @@ func Command() *cobra.Command {
 		var stackName = "demo"
 		var wait = false
 		var init = func() *awscloud.SimpleClient {
-			client, err := awscloud.DefaultClient()
+			client, err := awscloud.DefaultClient(awscloud.SimpleClientOptions{Wait: wait})
 			if err != nil {
 				io.Failed("Unable to load AWS config: %s", err)
 				os.Exit(1)
@@ -84,7 +86,6 @@ func Command() *cobra.Command {
 				Short: "Deploy AWS resources",
 			}
 			cmd.PersistentFlags().BoolVarP(&wait, "wait", "w", false, "if set, command blocks until operation completes")
-			// TODO: map deploy options to stack template property overrides
 
 			// cmd deploy stack
 			cmd.AddCommand((func() *cobra.Command {
@@ -95,15 +96,18 @@ func Command() *cobra.Command {
 						templateBody := tpl.Read("demo.yaml")
 
 						var client = init()
+						io.Step("Deploying stack (%s)...", stackName)
 						resp, err := client.Deploy(stackName, templateBody)
 						if err != nil {
 							io.Failed("Unable to deploy stack (%s): %s", stackName, err)
 							os.Exit(1)
 						}
-						io.Success("Deploying stack (%s): %s", stackName, aws.StringValue(resp.StackId))
-						io.Println("--wait: %t", wait)
+						if client.Options.Wait {
+							io.Success("Deployed stack (%s): %s", stackName, aws.StringValue(resp.StackId))
+						}
 					},
 				}
+				// TODO: map deploy flags to stack template property overrides
 				return cmd
 			})())
 
@@ -125,15 +129,18 @@ func Command() *cobra.Command {
 					Short: "Deploy CloudFormation stack",
 					Run: func(cmd *cobra.Command, args []string) {
 						var client = init()
-						resp, err := client.Delete(stackName)
+						io.Step("Deleting stack (%s)...", stackName)
+						_, err := client.Delete(stackName)
 						if err != nil {
 							io.Failed("Unable to delete stack (%s): %s", stackName, err)
 							os.Exit(1)
 						}
-						io.Success("Deleting stack (%s): %s", stackName, resp.String())
-						io.Println("--wait: %t", wait)
+						if client.Options.Wait {
+							io.Success("Deleted stack (%s)", stackName)
+						}
 					},
 				}
+				// TODO: delete specific flags
 				return cmd
 			})())
 

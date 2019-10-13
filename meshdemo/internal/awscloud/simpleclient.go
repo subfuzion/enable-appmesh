@@ -8,17 +8,22 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation"
 )
 
+type SimpleClientOptions struct {
+	Wait bool
+}
+
 type SimpleClient struct {
 	AWSConfig            aws.Config
 	CloudFormationClient *cloudformation.Client
+	Options              SimpleClientOptions
 }
 
-func New() *SimpleClient {
-	return &SimpleClient{}
+func New(options SimpleClientOptions) *SimpleClient {
+	return &SimpleClient{Options: options}
 }
 
-func DefaultClient() (*SimpleClient, error) {
-	client := &SimpleClient{}
+func DefaultClient(options SimpleClientOptions) (*SimpleClient, error) {
+	client := New(options)
 	err := client.LoadDefaultConfig()
 	return client, err
 }
@@ -56,7 +61,21 @@ func (c *SimpleClient) Deploy(name string, templateBody string) (*cloudformation
 		TimeoutInMinutes:            nil,
 	})
 
-	return req.Send(context.TODO())
+	resp, err := req.Send(context.TODO())
+	if err != nil {
+		return nil, err
+	}
+
+	if c.Options.Wait {
+		err := cf.WaitUntilStackCreateComplete(context.TODO(), &cloudformation.DescribeStacksInput{
+			StackName: aws.String(name),
+		})
+		if err != nil {
+			return resp, err
+		}
+	}
+
+	return resp, nil
 }
 
 func (c *SimpleClient) Delete(name string) (*cloudformation.DeleteStackResponse, error) {
@@ -70,5 +89,19 @@ func (c *SimpleClient) Delete(name string) (*cloudformation.DeleteStackResponse,
 		StackName:          aws.String(name),
 	})
 
-	return req.Send(context.TODO())
+	resp, err := req.Send(context.TODO())
+	if err != nil {
+		return nil, err
+	}
+
+	if c.Options.Wait {
+		cf.WaitUntilStackDeleteComplete(context.TODO(), &cloudformation.DescribeStacksInput{
+			StackName: aws.String(name),
+		})
+		if err != nil {
+			return resp, err
+		}
+	}
+
+	return resp, nil
 }
