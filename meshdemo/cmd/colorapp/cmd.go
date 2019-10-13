@@ -79,11 +79,11 @@ func Command() *cobra.Command {
 			return client
 		}
 
-		// cmd deploy
+		// cmd create
 		cmd.AddCommand((func() *cobra.Command {
 			var cmd = &cobra.Command{
-				Use:   "deploy",
-				Short: "Deploy AWS resources",
+				Use:   "create",
+				Short: "Create AWS resource",
 			}
 			cmd.PersistentFlags().BoolVarP(&wait, "wait", "w", false, "if set, command blocks until operation completes")
 
@@ -91,19 +91,19 @@ func Command() *cobra.Command {
 			cmd.AddCommand((func() *cobra.Command {
 				var cmd = &cobra.Command{
 					Use:   "stack",
-					Short: "Deploy CloudFormation stack",
+					Short: "Create CloudFormation stack",
 					Run: func(cmd *cobra.Command, args []string) {
 						templateBody := tpl.Read("demo.yaml")
 
 						var client = init()
-						io.Step("Deploying stack (%s)...", stackName)
+						io.Step("Creating stack (%s)...", stackName)
 						resp, err := client.Deploy(stackName, templateBody)
 						if err != nil {
-							io.Failed("Unable to deploy stack (%s): %s", stackName, err)
+							io.Failed("Unable to create stack (%s): %s", stackName, err)
 							os.Exit(1)
 						}
 						if client.Options.Wait {
-							io.Success("Deployed stack (%s): %s", stackName, aws.StringValue(resp.StackId))
+							io.Success("Created stack (%s): %s", stackName, aws.StringValue(resp.StackId))
 						}
 					},
 				}
@@ -114,11 +114,36 @@ func Command() *cobra.Command {
 			return cmd
 		})())
 
+		// cmd update
+		cmd.AddCommand((func() *cobra.Command {
+			var cmd = &cobra.Command{
+				Use:   "update",
+				Short: "Update AWS resource",
+			}
+			// TODO: update specific flags
+
+			// cmd update route
+			cmd.AddCommand((func() *cobra.Command {
+				var cmd = &cobra.Command{
+					Use:   "route",
+					Short: "Update App Mesh route",
+					Run: func(cmd *cobra.Command, args []string) {
+						io.Step("Updating route...")
+						io.Success("Updated route")
+					},
+				}
+				// TODO: route specific flags (e.g., --rolling)
+				return cmd
+			})())
+
+			return cmd
+		})())
+
 		// cmd delete
 		cmd.AddCommand((func() *cobra.Command {
 			var cmd = &cobra.Command{
 				Use:   "delete",
-				Short: "Delete AWS resources",
+				Short: "Delete AWS resource",
 			}
 			cmd.PersistentFlags().BoolVarP(&wait, "wait", "w", false, "if set, command blocks until operation completes")
 
