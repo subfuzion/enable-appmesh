@@ -22,10 +22,10 @@ import (
 
 func main() {
 	configuration.Init()
-	cmd := Command()
-	if err := cmd.Execute(); err != nil {
+	cli := CLI()
+	if err := cli.Execute(); err != nil {
 		// if errors have been silenced, then print surfaced error here before exiting
-		if cmd.SilenceErrors {
+		if cli.SilenceErrors {
 			io.Fatal(1, err)
 		}
 	}

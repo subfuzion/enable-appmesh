@@ -8,24 +8,44 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation"
 )
 
-type SimpleClientOptions struct {
-	Wait bool
-}
-
 type SimpleClient struct {
 	AWSConfig            aws.Config
 	CloudFormationClient *cloudformation.Client
-	Options              SimpleClientOptions
+	Options              *SimpleClientOptions
 }
 
-func New(options SimpleClientOptions) *SimpleClient {
-	return &SimpleClient{Options: options}
+type SimpleClientOptions struct {
+	LoadDefaultConfig bool
+	Wait bool
 }
 
-func DefaultClient(options SimpleClientOptions) (*SimpleClient, error) {
-	client := New(options)
-	err := client.LoadDefaultConfig()
-	return client, err
+type CreateStackOptions struct {
+	// Name is the name of the stack
+	Name string
+
+	// TemplatePath is a relative path to a file inside the (embedded) _templates directory
+	TemplatePath string
+
+	// Parameters are CloudFormation template parameters used when deploying a stack
+	Parameters StackParameters
+}
+
+type StackParameters map[string]string
+
+type DeleteStackOptions struct {
+	Name string
+}
+
+// NewClient returns a SimpleClient instance.
+// If options.LoadDefaultConfig is set and there is an error loading
+// the user's AWS config, then it returns an error.
+func NewClient(options *SimpleClientOptions) (*SimpleClient, error) {
+	client := &SimpleClient{Options: options}
+	if options.LoadDefaultConfig {
+		err := client.LoadDefaultConfig()
+		return client, err
+	}
+	return client, nil
 }
 
 func (c *SimpleClient) LoadDefaultConfig() error {
@@ -37,7 +57,7 @@ func (c *SimpleClient) LoadDefaultConfig() error {
 	return nil
 }
 
-func (c *SimpleClient) Deploy(name string, templateBody string) (*cloudformation.CreateStackResponse, error) {
+func (c *SimpleClient) CreateStack(name string, templateBody string) (*cloudformation.CreateStackResponse, error) {
 	cf := cloudformation.New(c.AWSConfig)
 	c.CloudFormationClient = cf
 
