@@ -16,12 +16,14 @@ limitations under the License.
 package main
 
 import (
+	"os"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/spf13/cobra"
 
-	_ "github.com/subfuzion/meshdemo/internal/aws"
-	"github.com/subfuzion/meshdemo/pkg/io"
-
+	"github.com/subfuzion/meshdemo/internal/awscloud"
 	"github.com/subfuzion/meshdemo/internal/configuration"
+	"github.com/subfuzion/meshdemo/pkg/io"
 )
 
 func init() {
@@ -30,10 +32,17 @@ func init() {
 	cmd.PersistentFlags().StringVar(&configuration.ConfigFile, "config", "", "config file (default is $HOME/.colorapp.yaml)")
 	cmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 
+
 	cmd.AddCommand(configCmd)
 	cmd.AddCommand(createCmd)
-	cmd.AddCommand(deployCmd)
 
+	// $ colorapp deploy
+	cmd.AddCommand(deployCmd)
+	deployCmd.AddCommand(deployStackCmd)
+
+	// $ colorapp delete
+	cmd.AddCommand(deleteCmd)
+	deleteCmd.AddCommand(deleteStackCmd)
 }
 
 // Execute starts command processing each time the CLI is used. It's called once by main.main().
@@ -73,8 +82,54 @@ var createCmd = &cobra.Command{
 
 var deployCmd = &cobra.Command{
 	Use:   "deploy",
-	Short: "A brief description of your command",
+	Short: "Deploy AWS resources",
+}
+
+var deployStackCmd = &cobra.Command{
+	Use:   "stack",
+	Short: "Deploy CloudFormation stack",
 	Run: func(cmd *cobra.Command, args []string) {
-		io.Info("deploy called")
+		templateBody := tpl.Read("demo.yaml")
+
+		client, err := awscloud.DefaultClient()
+		if err != nil {
+			io.Failed("Unable to load AWS config: %s", err)
+			os.Exit(1)
+		}
+
+		stackName := "demo"
+		resp, err := client.Deploy(stackName, templateBody)
+		if err != nil {
+			io.Failed("Unable to deploy stack (%s): %s", stackName, err)
+		}
+		io.Success("Deploying stack (%s): %s", stackName, aws.StringValue(resp.StackId))
 	},
 }
+
+
+var deleteCmd = &cobra.Command{
+	Use:   "delete",
+	Short: "Delete AWS resources",
+}
+
+var deleteStackCmd = &cobra.Command{
+	Use:   "stack",
+	Short: "Deploy CloudFormation stack",
+	Run: func(cmd *cobra.Command, args []string) {
+		client, err := awscloud.DefaultClient()
+		if err != nil {
+			io.Failed("Unable to load AWS config: %s", err)
+			os.Exit(1)
+		}
+
+		stackName := "demo"
+		resp, err := client.Delete(stackName)
+		if err != nil {
+			io.Failed("Unable to delete stack (%s): %s", stackName, err)
+			os.Exit(1)
+		}
+		io.Success("Deleting stack (%s): %s", stackName, resp.String())
+	},
+}
+
+

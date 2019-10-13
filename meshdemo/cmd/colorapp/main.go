@@ -15,6 +15,10 @@ limitations under the License.
 */
 package main
 
+import "github.com/subfuzion/meshdemo/pkg/io"
+
 func main() {
-	cmd.Execute()
+	if err := cmd.Execute(); err != nil {
+		io.Error("error should have been handled before reaching here: %s", err)
+	}
 }
