@@ -15,10 +15,18 @@ limitations under the License.
 */
 package main
 
-import "github.com/subfuzion/meshdemo/pkg/io"
+import (
+	"github.com/subfuzion/meshdemo/internal/configuration"
+	"github.com/subfuzion/meshdemo/pkg/io"
+)
 
 func main() {
+	configuration.Init()
+	cmd := Command()
 	if err := cmd.Execute(); err != nil {
-		io.Error("error should have been handled before reaching here: %s", err)
+		// if errors have been silenced, then print surfaced error here before exiting
+		if cmd.SilenceErrors {
+			io.Fatal(1, err)
+		}
 	}
 }

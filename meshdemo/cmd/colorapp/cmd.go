@@ -26,110 +26,121 @@ import (
 	"github.com/subfuzion/meshdemo/pkg/io"
 )
 
-func init() {
-	configuration.Init()
-
+// Command sets up the entire CLI command structure.
+// It returns the root command.
+func Command() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "colorapp",
+		Short: "CLI for demonstrating App Mesh",
+		Run: func(cmd *cobra.Command, args []string) {
+			io.Printf(cmd.UsageString())
+		},
+	}
 	cmd.PersistentFlags().StringVar(&configuration.ConfigFile, "config", "", "config file (default is $HOME/.colorapp.yaml)")
 	cmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 
-
-	cmd.AddCommand(configCmd)
-	cmd.AddCommand(createCmd)
-
-	// $ colorapp deploy
-	cmd.AddCommand(deployCmd)
-	deployCmd.AddCommand(deployStackCmd)
-
-	// $ colorapp delete
-	cmd.AddCommand(deleteCmd)
-	deleteCmd.AddCommand(deleteStackCmd)
-}
-
-// Execute starts command processing each time the CLI is used. It's called once by main.main().
-func Execute() {
-	if err := cmd.Execute(); err != nil {
-		// if errors have been silenced, then print surfaced error here before exiting
-		if cmd.SilenceErrors {
-			io.Fatal(1, err)
+	// cmd config
+	cmd.AddCommand((func() *cobra.Command {
+		var cmd = &cobra.Command{
+			Use:   "config",
+			Short: "Print config file in use",
+			Run: func(cmd *cobra.Command, args []string) {
+				io.Info("config called")
+			},
 		}
-	}
-}
+		return cmd
+	})())
 
-var cmd = &cobra.Command{
-	Use:   "colorapp",
-	Short: "CLI for demonstrating App Mesh",
-	Run: func(cmd *cobra.Command, args []string) {
-		io.Printf(cmd.UsageString())
-	},
-}
+	// cmd create
+	cmd.AddCommand((func() *cobra.Command {
+		var cmd = &cobra.Command{
+			Use:   "create",
+			Short: "Create a config file",
+			Args:  cobra.ExactArgs(1),
+			Run: func(cmd *cobra.Command, args []string) {
+				io.Info("create called")
+			},
+		}
+		return cmd
+	})())
 
-var configCmd = &cobra.Command{
-	Use:   "config",
-	Short: "Print config file in use",
-	Run: func(cmd *cobra.Command, args []string) {
-		io.Info("configcalled")
-	},
-}
-
-var createCmd = &cobra.Command{
-	Use:   "create",
-	Short: "Create a config file",
-	Args:  cobra.ExactArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
-		io.Info("create called")
-	},
-}
-
-var deployCmd = &cobra.Command{
-	Use:   "deploy",
-	Short: "Deploy AWS resources",
-}
-
-var deployStackCmd = &cobra.Command{
-	Use:   "stack",
-	Short: "Deploy CloudFormation stack",
-	Run: func(cmd *cobra.Command, args []string) {
-		templateBody := tpl.Read("demo.yaml")
-
-		client, err := awscloud.DefaultClient()
-		if err != nil {
-			io.Failed("Unable to load AWS config: %s", err)
-			os.Exit(1)
+	// init AWS client commands
+	func() {
+		var stackName = "demo"
+		var wait = false
+		var init = func() *awscloud.SimpleClient {
+			client, err := awscloud.DefaultClient()
+			if err != nil {
+				io.Failed("Unable to load AWS config: %s", err)
+				os.Exit(1)
+			}
+			return client
 		}
 
-		stackName := "demo"
-		resp, err := client.Deploy(stackName, templateBody)
-		if err != nil {
-			io.Failed("Unable to deploy stack (%s): %s", stackName, err)
-		}
-		io.Success("Deploying stack (%s): %s", stackName, aws.StringValue(resp.StackId))
-	},
+		// cmd deploy
+		cmd.AddCommand((func() *cobra.Command {
+			var cmd = &cobra.Command{
+				Use:   "deploy",
+				Short: "Deploy AWS resources",
+			}
+			cmd.PersistentFlags().BoolVarP(&wait, "wait", "w", false, "if set, command blocks until operation completes")
+			// TODO: map deploy options to stack template property overrides
+
+			// cmd deploy stack
+			cmd.AddCommand((func() *cobra.Command {
+				var cmd = &cobra.Command{
+					Use:   "stack",
+					Short: "Deploy CloudFormation stack",
+					Run: func(cmd *cobra.Command, args []string) {
+						templateBody := tpl.Read("demo.yaml")
+
+						var client = init()
+						resp, err := client.Deploy(stackName, templateBody)
+						if err != nil {
+							io.Failed("Unable to deploy stack (%s): %s", stackName, err)
+							os.Exit(1)
+						}
+						io.Success("Deploying stack (%s): %s", stackName, aws.StringValue(resp.StackId))
+						io.Println("--wait: %t", wait)
+					},
+				}
+				return cmd
+			})())
+
+			return cmd
+		})())
+
+		// cmd delete
+		cmd.AddCommand((func() *cobra.Command {
+			var cmd = &cobra.Command{
+				Use:   "delete",
+				Short: "Delete AWS resources",
+			}
+			cmd.PersistentFlags().BoolVarP(&wait, "wait", "w", false, "if set, command blocks until operation completes")
+
+			// cmd delete stack
+			cmd.AddCommand((func() *cobra.Command {
+				var cmd = &cobra.Command{
+					Use:   "stack",
+					Short: "Deploy CloudFormation stack",
+					Run: func(cmd *cobra.Command, args []string) {
+						var client = init()
+						resp, err := client.Delete(stackName)
+						if err != nil {
+							io.Failed("Unable to delete stack (%s): %s", stackName, err)
+							os.Exit(1)
+						}
+						io.Success("Deleting stack (%s): %s", stackName, resp.String())
+						io.Println("--wait: %t", wait)
+					},
+				}
+				return cmd
+			})())
+
+			return cmd
+		})())
+
+	}() // aws client commands
+
+	return cmd
 }
-
-
-var deleteCmd = &cobra.Command{
-	Use:   "delete",
-	Short: "Delete AWS resources",
-}
-
-var deleteStackCmd = &cobra.Command{
-	Use:   "stack",
-	Short: "Deploy CloudFormation stack",
-	Run: func(cmd *cobra.Command, args []string) {
-		client, err := awscloud.DefaultClient()
-		if err != nil {
-			io.Failed("Unable to load AWS config: %s", err)
-			os.Exit(1)
-		}
-
-		stackName := "demo"
-		resp, err := client.Delete(stackName)
-		if err != nil {
-			io.Failed("Unable to delete stack (%s): %s", stackName, err)
-			os.Exit(1)
-		}
-		io.Success("Deleting stack (%s): %s", stackName, resp.String())
-	},
-}
-
-
