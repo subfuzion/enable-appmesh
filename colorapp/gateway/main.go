@@ -82,11 +82,20 @@ func getColorFromColorTeller(request *http.Request) (string, error) {
 	if err != nil {
 		return "", err
 	}
-
 	defer resp.Body.Close()
+
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
+	}
+
+	// colorteller "red" is configured to occasionally return 500
+	// in any case, client.Do doesn't consider HTTP error codes to be
+	// an error, so let's handle that and plug the gap in error
+	// handling that allows errors to slip through as colors and get
+	// stored in the color history.
+	if resp.StatusCode >= 400 {
+		return "", errors.New(string(body))
 	}
 
 	color := strings.TrimSpace(string(body))

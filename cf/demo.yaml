@@ -22,13 +22,13 @@ Parameters:
   GatewayImage:
     Description: Docker image for gateway service
     Type: String
-    Default: subfuzion/colorgateway:v6
+    Default: subfuzion/colorgateway:v7
     # Default: 226767807331.dkr.ecr.us-west-2.amazonaws.com/gateway:latest
 
   ColorTellerImage:
     Description: Docker image for colorteller service
     Type: String
-    Default: subfuzion/colorteller:v6
+    Default: subfuzion/colorteller:v7
     # Default: 226767807331.dkr.ecr.us-west-2.amazonaws.com/colorteller:latest
 
   RedColorTellerResponseDelay:
@@ -1323,5 +1323,4 @@ Outputs:
   ClusterName:
     Description: "ECS Cluster name:"
     Value: !Ref Cluster
-
 
