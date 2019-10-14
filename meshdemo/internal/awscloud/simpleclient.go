@@ -197,3 +197,53 @@ func (c *SimpleClient) UpdateRoute(input *appmesh.UpdateRouteInput) (*appmesh.Up
 	req := client.UpdateRouteRequest(input)
 	return req.Send(context.TODO())
 }
+
+func (c *SimpleClient) GetStackOutput(name string, keys ...string) (map[string]string, error) {
+	client := c.CloudFormationClient()
+
+	req := client.DescribeStacksRequest(&cloudformation.DescribeStacksInput{
+		NextToken: nil,
+		StackName: aws.String(name),
+	})
+
+
+	resp, err := req.Send(context.TODO())
+	if err != nil {
+		return nil, err
+	}
+
+	outputs := resp.Stacks[0].Outputs
+
+	if len(keys) > 0 {
+		// filter will be a set that we can use to test if a key is present
+		filter := map[string]struct{}{}
+
+		// filtered will be the final outputs array
+		filtered := []cloudformation.Output{}
+
+		// add the requested keys to the filter set
+		for _, k := range keys {
+			filter[k] = struct{}{}
+		}
+
+		// filter the outputs array
+		for _, o := range outputs {
+			key := aws.StringValue(o.OutputKey)
+			if _, exists := filter[key]; exists {
+				filtered = append(filtered, o)
+			}
+		}
+
+		outputs = filtered
+	}
+
+	results := map[string]string{}
+	for _, o := range outputs {
+		k := aws.StringValue(o.OutputKey)
+		v := aws.StringValue(o.OutputValue)
+		results[k] = v
+	}
+
+	return results, nil
+
+}

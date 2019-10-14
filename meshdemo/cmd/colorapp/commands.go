@@ -54,8 +54,24 @@ func createStack(client *awscloud.SimpleClient, options *awscloud.CreateStackOpt
 		io.Failed("Unable to create stack (%s): %s", stackName, err)
 		os.Exit(1)
 	}
+
+	// if the request blocked until finished and there were no errors, then we can output final status here
 	if client.Options.Wait {
+		outputs, err := client.GetStackOutput(stackName)
+		if err != nil {
+			io.Alert("Request to get stack outputs failed for stack: %s", stackName)
+		}
+
+		if val, exists := outputs["ClusterName"]; exists {
+			io.Status("%s.%s = %s", stackName, "ClusterName", val)
+		}
+
+		if val, exists := outputs["URL"]; exists {
+			io.Status("%s.%s = %s", stackName, "URL", val)
+		}
+
 		io.Success("Created stack (%s): %s", stackName, aws.StringValue(resp.StackId))
+
 	}
 }
 
@@ -216,4 +232,20 @@ func formatUpdateRouteResponse(resp *appmesh.UpdateRouteResponse) string {
 	t := tmpl.Parse("update_route_response.tmpl")
 	t.Execute(sb, resp.Route)
 	return sb.String()
+}
+
+func getStackUrlHandler(cmd *cobra.Command, args []string) {
+	getStackUrl(newClient(cmd), "demo")
+}
+
+func getStackUrl(client *awscloud.SimpleClient, stackName string) {
+	output, err := client.GetStackOutput(stackName, "URL")
+	if err != nil {
+		io.Alert("Request to get stack output (%s) failed for stack: %s", "URL", stackName)
+	}
+	if len(output) == 0 {
+		io.Failed("missing URL for stack: %s", stackName)
+	}
+
+	io.Info("%s.%s = %s", stackName, "URL", output["URL"])
 }

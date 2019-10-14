@@ -41,6 +41,7 @@ func CLI() *cobra.Command {
 	cmd.AddCommand(newCreateCommand())
 	cmd.AddCommand(newUpdateCommand())
 	cmd.AddCommand(newDeleteCommand())
+	cmd.AddCommand(newGetCommand())
 
 	return cmd
 }
@@ -142,3 +143,31 @@ func newUpdateRouteCommand() *cobra.Command {
 	cmd.Flags().Int("interval", 0, "set interval (in seconds) between each rolling update")
 	return cmd
 }
+
+func newGetCommand() *cobra.Command {
+	var cmd = &cobra.Command{
+		Use:   "get",
+		Short: "Get information about a resource",
+	}
+	cmd.AddCommand(newGetStackCommand())
+	return cmd
+}
+
+func newGetStackCommand() *cobra.Command {
+	var cmd = &cobra.Command{
+		Use: "stack",
+		Short: "Get information about a deployed stack",
+	}
+	cmd.AddCommand(newGetStackUrlCommand())
+	return cmd
+}
+
+func newGetStackUrlCommand() *cobra.Command {
+	var cmd = &cobra.Command{
+		Use: "url",
+		Short: "Get stack public URL",
+		Run: getStackUrlHandler,
+	}
+	return cmd
+}
+
