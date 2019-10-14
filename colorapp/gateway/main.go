@@ -88,13 +88,10 @@ func getColorFromColorTeller(request *http.Request) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if resp.StatusCode >= 300 {
-		return "", errors.New(string(body))
-	}
 
 	color := strings.TrimSpace(string(body))
 	if len(color) < 1 {
-		return "", errors.New("[Error] empty response from colorteller")
+		return "", errors.New("empty response from colorteller")
 	}
 
 	return color, nil
@@ -116,6 +113,7 @@ func (h *colorHandler) ServeHTTP(writer http.ResponseWriter, request *http.Reque
 		return
 	}
 
+	log.Printf("[Info] fetched color: %s", color)
 	addColor(color)
 
 	statsJson, err := json.Marshal(getRatios())
@@ -124,6 +122,7 @@ func (h *colorHandler) ServeHTTP(writer http.ResponseWriter, request *http.Reque
 		fmt.Fprintf(writer, `{"color":"%s", "error":"%s"}`, color, err)
 		return
 	}
+	log.Printf("[Info] sending response: {\"color\":\"%s\", \"stats\":%s}", color, statsJson)
 	fmt.Fprintf(writer, `{"color":"%s", "stats": %s}`, color, statsJson)
 }
 
@@ -153,7 +152,7 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	log.Println("Using colorteller at " + colorTellerEndpoint)
+	log.Println("[Info] Using colorteller at " + colorTellerEndpoint)
 
 	var color http.Handler
 	var clear http.Handler

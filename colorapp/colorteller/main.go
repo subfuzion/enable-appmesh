@@ -54,7 +54,7 @@ func init() {
 	if delayStr, exists := os.LookupEnv("TEST_RESPONSE_DELAY"); exists {
 		delay, err := strconv.Atoi(delayStr)
 		if err != nil {
-			log.Printf("[Error] failed to parse TEST_RESPONSE_DELAY (%s): %s", delay, err)
+			log.Printf("[Error] failed to parse TEST_RESPONSE_DELAY (%s): %s", delayStr, err)
 		}
 		responseDelay = time.Duration(delay)
 	}
@@ -63,11 +63,13 @@ func init() {
 	// every so many invocations of the default route
 	// A zero value means never send errors; a 1 value means send an error every
 	// invocation; a 2 value means every other invocation; and so on.
-	pe, err := strconv.Atoi(os.Getenv("TEST_PERIODIC_ERROR"))
-	if err != nil {
-		log.Printf("[Error] failed to parse TEST_PERIODIC_ERROR (%s): %s", pe, err)
+	if peStr, exists := os.LookupEnv("TEST_PERIODIC_ERROR"); exists {
+		pe, err := strconv.Atoi(peStr)
+		if err != nil {
+			log.Printf("[Error] failed to parse TEST_PERIODIC_ERROR (%s): %s", peStr, err)
+		}
+		periodicError = pe
 	}
-	periodicError = pe
 
 }
 
