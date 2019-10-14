@@ -79,7 +79,7 @@ func newCreateCommand() *cobra.Command {
 		Use:   "create",
 		Short: "Create AWS resource",
 	}
-	cmd.PersistentFlags().BoolP( "wait", "w", false, "if set, command blocks until operation completes")
+	cmd.PersistentFlags().BoolP("wait", "w", false, "if set, command blocks until operation completes")
 	cmd.AddCommand(newCreateStackCommand())
 	return cmd
 }
@@ -89,9 +89,31 @@ func newCreateStackCommand() *cobra.Command {
 	var cmd = &cobra.Command{
 		Use:   "stack",
 		Short: "Create CloudFormation stack",
-		Run: CreateStackHandler,
+		Run:   createStackHandler,
 	}
 	// TODO: map deploy flags to stack template property overrides
+	return cmd
+}
+
+// cmd delete
+func newDeleteCommand() *cobra.Command {
+	var cmd = &cobra.Command{
+		Use:   "delete",
+		Short: "Delete AWS resource",
+	}
+	cmd.PersistentFlags().BoolP("wait", "w", false, "if set, command blocks until operation completes")
+	cmd.AddCommand(newDeleteStackCommand())
+	return cmd
+}
+
+// cmd delete stack
+func newDeleteStackCommand() *cobra.Command {
+	var cmd = &cobra.Command{
+		Use:   "stack",
+		Short: "Delete CloudFormation stack",
+		Run:   deleteStackHandler,
+	}
+	// TODO: delete specific flags
 	return cmd
 }
 
@@ -111,34 +133,12 @@ func newUpdateRouteCommand() *cobra.Command {
 	var cmd = &cobra.Command{
 		Use:   "route",
 		Short: "Update App Mesh route",
-		Run: func(cmd *cobra.Command, args []string) {
-			io.Step("Updating route...")
-			io.Success("Updated route")
-		},
+		Run:   updateRouteHandler,
 	}
-	// TODO: route specific flags (e.g., --rolling)
+	cmd.Flags().IntP("blue", "b", 0, "set the weight for the blue virtual node")
+	cmd.Flags().IntP("green", "g", 0, "set the weight for the green virtual node")
+	cmd.Flags().IntP("red", "r", 0, "set the weight for the red virtual node")
+	cmd.Flags().Int("rolling", 0, "set increment (as a percentage) for rolling update (either 0 or 100 disables")
+	cmd.Flags().Int("interval", 0, "set interval (in seconds) between each rolling update")
 	return cmd
 }
-
-// cmd delete
-func newDeleteCommand() *cobra.Command {
-	var cmd = &cobra.Command{
-		Use:   "delete",
-		Short: "Delete AWS resource",
-	}
-	cmd.PersistentFlags().BoolP("wait", "w", false, "if set, command blocks until operation completes")
-	cmd.AddCommand(newDeleteStackCommand())
-	return cmd
-}
-
-// cmd delete stack
-func newDeleteStackCommand() *cobra.Command {
-	var cmd = &cobra.Command{
-		Use:   "stack",
-		Short: "CreateStack CloudFormation stack",
-		Run: DeleteStackHandler,
-	}
-	// TODO: delete specific flags
-	return cmd
-}
-

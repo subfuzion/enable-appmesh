@@ -6,6 +6,8 @@
 package template
 
 import (
+	"text/template"
+
 	"github.com/gobuffalo/packr/v2"
 
 	"github.com/subfuzion/meshdemo/pkg/io"
@@ -33,4 +35,13 @@ func (t *Template) Read(name string) string {
 		io.Fatal(1, err)
 	}
 	return s
+}
+
+func (t *Template) Parse(name string) *template.Template {
+	tmpl := template.New(name)
+	tmpl, err := tmpl.Parse(t.Read(name))
+	if err != nil {
+		io.Fatal(1, "Parsing %s: ", name, err)
+	}
+	return tmpl
 }

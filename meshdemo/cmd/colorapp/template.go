@@ -6,9 +6,9 @@ import (
 	"github.com/subfuzion/meshdemo/internal/template"
 )
 
-var tpl *template.Template
+var tmpl *template.Template
 
 func init() {
 	// use packr2 to compile _templates into the executable
-	tpl = template.New(packr.New("templates", "_templates"))
+	tmpl = template.New(packr.New("templates", "_templates"))
 }

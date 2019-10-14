@@ -1,17 +1,33 @@
+// commands.go provides the CLI UX.
+// For each command *, *Handler functions are called by the CLI; they
+// are responsible for processing command line flags, args, and the
+// environment, before calling the corresponding * function to perform
+// the desired action.
 package main
 
 import (
 	"os"
+	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/appmesh"
 	"github.com/spf13/cobra"
 
 	"github.com/subfuzion/meshdemo/internal/awscloud"
 	"github.com/subfuzion/meshdemo/pkg/io"
 )
 
-func Client(options *awscloud.SimpleClientOptions) *awscloud.SimpleClient {
-	client, err := awscloud.NewClient(options)
+func newClient(cmd *cobra.Command) *awscloud.SimpleClient {
+	// wait is either a flag that is available on either this command
+	// or a persistent flag on the parent command for commands that
+	// support blocking
+	wait, _ := cmd.Flags().GetBool("wait")
+
+	client, err := awscloud.NewClient(&awscloud.SimpleClientOptions{
+		LoadDefaultConfig: true,
+		Wait:              wait,
+	})
 	if err != nil {
 		io.Failed("Unable to load AWS config: %s", err)
 		os.Exit(1)
@@ -19,30 +35,17 @@ func Client(options *awscloud.SimpleClientOptions) *awscloud.SimpleClient {
 	return client
 }
 
-func getSimpleClientOptions(cmd *cobra.Command) *awscloud.SimpleClientOptions {
-	// wait is either a flag that is available on either this command
-	// or a persistent flag on the parent command for commands that
-	// support blocking
-	wait, _ := cmd.Flags().GetBool("wait")
-
-	return &awscloud.SimpleClientOptions{
-		LoadDefaultConfig: true,
-		Wait: wait,
-	}
-}
-
-func CreateStackHandler(cmd *cobra.Command, args []string) {
-	CreateStack(getSimpleClientOptions(cmd), &awscloud.CreateStackOptions{
+func createStackHandler(cmd *cobra.Command, args []string) {
+	createStack(newClient(cmd), &awscloud.CreateStackOptions{
 		Name:         "demo",
 		TemplatePath: "demo.yaml",
 		Parameters:   nil,
 	})
 }
 
-func CreateStack(clientOptions *awscloud.SimpleClientOptions, options *awscloud.CreateStackOptions) {
-	client := Client(clientOptions)
+func createStack(client *awscloud.SimpleClient, options *awscloud.CreateStackOptions) {
 	stackName := options.Name
-	templateBody := tpl.Read(options.TemplatePath)
+	templateBody := tmpl.Read(options.TemplatePath)
 
 	io.Step("Creating stack (%s)...", stackName)
 
@@ -56,19 +59,18 @@ func CreateStack(clientOptions *awscloud.SimpleClientOptions, options *awscloud.
 	}
 }
 
-func DeleteStackHandler(cmd *cobra.Command, args []string) {
-	DeleteStack(getSimpleClientOptions(cmd), &awscloud.DeleteStackOptions{
-		Name:         "demo",
+func deleteStackHandler(cmd *cobra.Command, args []string) {
+	deleteStack(newClient(cmd), &awscloud.DeleteStackOptions{
+		Name: "demo",
 	})
 }
 
-func DeleteStack(clientOptions *awscloud.SimpleClientOptions, options *awscloud.DeleteStackOptions) {
-	client := Client(clientOptions)
+func deleteStack(client *awscloud.SimpleClient, options *awscloud.DeleteStackOptions) {
 	stackName := options.Name
 
-	io.Step("Deleteing stack (%s)...", stackName)
+	io.Step("Deleting stack (%s)...", stackName)
 
-	_, err := client.Delete(stackName)
+	_, err := client.DeleteStack(stackName)
 	if err != nil {
 		io.Failed("Unable to delete stack (%s): %s", stackName, err)
 		os.Exit(1)
@@ -78,3 +80,140 @@ func DeleteStack(clientOptions *awscloud.SimpleClientOptions, options *awscloud.
 	}
 }
 
+
+type WeightMap map[string]int
+
+type RollingUpdateSpec struct {
+	// Increment is a value between 0-100 percent for rolling out an updated in incremental stages.
+	// A value of either 0 or 100 effectively disables a rolling update, meaning that the update
+	// is applied immediately.
+	Increment int
+
+	// Interval is the period to wait before applying the next update stage.
+	Interval time.Duration
+}
+
+// UpdateRouteCommandOptions contains settings for updating App Mesh routes.
+// NOTE: this, of course, is very specific to the Color App demo.
+type UpdateRouteCommandOptions struct {
+	// MeshName is the name of the App Mesh mesh to use.
+	MeshName string
+
+	// RouteName is the name of the App Mesh route to use.
+	RouteName string
+
+	// VirtualRouterName is the name of the App Mesh virtual router to use.
+	VirtualRouterName string
+
+	// Map of color to weight to apply to the color virtual nodes.
+	Weights WeightMap
+
+	// RollingUpdate affects the percentage and rate of incremental updates.
+	RollingUpdate *RollingUpdateSpec
+}
+
+func updateRouteHandler(cmd *cobra.Command, args []string) {
+	meshName := "demo"
+	routeName := "color-route"
+	virtualRouterName := "colorteller-vr"
+	weights := WeightMap{}
+
+	blue, err := cmd.Flags().GetInt("blue")
+	if err != nil {
+		io.Fatal(1, "bad value for --blue option: %s", err)
+	}
+	weights["blue-vn"] = blue
+
+	green, err := cmd.Flags().GetInt("green")
+	if err != nil {
+		io.Fatal(1, "bad value for --green option: %s", err)
+	}
+	weights["green-vn"] = green
+
+	red, err := cmd.Flags().GetInt("red")
+	if err != nil {
+		io.Fatal(1, "bad value for --red option: %s", err)
+	}
+	weights["red-vn"] = red
+
+	rolling, err := cmd.Flags().GetInt("rolling")
+	if err != nil {
+		io.Fatal(1, "bad value for --rolling option: %s", err)
+	}
+	interval, err := cmd.Flags().GetInt("interval")
+	if err != nil {
+		io.Fatal(1, "bad value for --interval option: %s", err)
+	}
+
+	updateRoute(newClient(cmd), &UpdateRouteCommandOptions{
+		MeshName:        meshName,
+		RouteName:       routeName,
+		VirtualRouterName: virtualRouterName,
+		Weights: weights,
+		RollingUpdate: &RollingUpdateSpec{
+			Increment: rolling,
+			Interval:  time.Duration(interval) * time.Second,
+		},
+	})
+}
+
+func updateRoute(client *awscloud.SimpleClient, options *UpdateRouteCommandOptions) {
+	routeSpec := BuildRouteSpec(options)
+
+	input := &appmesh.UpdateRouteInput{
+		ClientToken: nil,
+		MeshName:    aws.String(options.MeshName),
+		RouteName:   aws.String(options.RouteName),
+		Spec: routeSpec,
+		VirtualRouterName: aws.String(options.VirtualRouterName),
+	}
+
+	io.Step("Updating route...")
+
+	resp, err := client.UpdateRoute(input)
+	if err != nil {
+		io.Failed("Unable to update route: %s", err)
+		os.Exit(1)
+	}
+	io.Success("Updated route: %s\n%s",
+		options.RouteName,
+		formatUpdateRouteResponse(resp))
+}
+
+func BuildRouteSpec(options *UpdateRouteCommandOptions) *appmesh.RouteSpec {
+	if len(options.Weights) == 0 {
+		io.Fatal(1, "must supply at least one weighted target (blue|green|red)")
+	}
+
+	weightedTargets := []appmesh.WeightedTarget{}
+	for node, weight := range options.Weights {
+		if weight > 0 {
+			weightedTargets = append(weightedTargets, appmesh.WeightedTarget{
+				VirtualNode: aws.String(node),
+				Weight:      aws.Int64(int64(weight)),
+			})
+		}
+	}
+
+	routeMatch := &appmesh.HttpRouteMatch{
+		Prefix:  aws.String("/"),
+	}
+
+	spec := &appmesh.RouteSpec{
+		HttpRoute: &appmesh.HttpRoute{
+			Action: &appmesh.HttpRouteAction{
+				WeightedTargets: weightedTargets,
+			},
+			Match: routeMatch,
+		},
+	}
+
+	return spec
+}
+
+func formatUpdateRouteResponse(resp *appmesh.UpdateRouteResponse) string {
+	sb := &strings.Builder{}
+	t := tmpl.Parse("update_route_response.tmpl")
+	t.Execute(sb, resp.Route)
+	return sb.String()
+}

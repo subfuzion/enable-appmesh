@@ -1,0 +1,9 @@
+{{/* do context should be an appmesh.UpdateRouteResponse */ -}}
+Route ............... {{.RouteName}}
+Mesh ................ {{.MeshName}}
+Virtual router ...... {{.VirtualRouterName}}
+Match route prefix .. {{.Spec.HttpRoute.Match.Prefix}}
+Weighted Targets
+{{- range .Spec.HttpRoute.Action.WeightedTargets}}
+  Virtual Node ...... {{.VirtualNode}} => {{.Weight -}}
+{{ end}}
