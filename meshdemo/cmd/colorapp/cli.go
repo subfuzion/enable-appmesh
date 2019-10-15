@@ -51,11 +51,7 @@ func newConfigCommand() *cobra.Command {
 	var cmd = &cobra.Command{
 		Use:   "config",
 		Short: "Print config file in use",
-		Run: func(cmd *cobra.Command, args []string) {
-			io.Info("config called")
-		},
 	}
-	// TODO: config specific flags
 	cmd.AddCommand(newConfigCreateCommand())
 	return cmd
 }
@@ -66,11 +62,7 @@ func newConfigCreateCommand() *cobra.Command {
 		Use:   "create",
 		Short: "Create a config file",
 		Args:  cobra.ExactArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			io.Info("create called")
-		},
 	}
-	// TODO: create specific flags
 	return cmd
 }
 
@@ -78,6 +70,7 @@ func newConfigCreateCommand() *cobra.Command {
 func newCreateCommand() *cobra.Command {
 	var cmd = &cobra.Command{
 		Use:   "create",
+		SuggestFor: []string{"deploy"},
 		Short: "Create AWS resource",
 	}
 	cmd.PersistentFlags().BoolP("wait", "w", false, "if set, command blocks until operation completes")
@@ -92,7 +85,7 @@ func newCreateStackCommand() *cobra.Command {
 		Short: "Create CloudFormation stack",
 		Run:   createStackHandler,
 	}
-	// TODO: map deploy flags to stack template property overrides
+	// TODO: add flag to set stack template property overrides
 	return cmd
 }
 
@@ -124,7 +117,6 @@ func newUpdateCommand() *cobra.Command {
 		Use:   "update",
 		Short: "Update AWS resource",
 	}
-	// TODO: update specific flags
 	cmd.AddCommand(newUpdateRouteCommand())
 	return cmd
 }
@@ -149,25 +141,38 @@ func newGetCommand() *cobra.Command {
 		Use:   "get",
 		Short: "Get information about a resource",
 	}
-	cmd.AddCommand(newGetStackCommand())
+	//cmd.AddCommand(newGetStackCommand())
+	cmd.AddCommand(newGetStackUrlCommand())
+	cmd.AddCommand(newGetColorCommand())
 	return cmd
 }
 
-func newGetStackCommand() *cobra.Command {
-	var cmd = &cobra.Command{
-		Use: "stack",
-		Short: "Get information about a deployed stack",
-	}
-	cmd.AddCommand(newGetStackUrlCommand())
-	return cmd
-}
+//func newGetStackCommand() *cobra.Command {
+//	var cmd = &cobra.Command{
+//		Use: "stack",
+//		Short: "Get information about a deployed stack",
+//	}
+//	cmd.AddCommand(newGetStackUrlCommand())
+//	return cmd
+//}
 
 func newGetStackUrlCommand() *cobra.Command {
 	var cmd = &cobra.Command{
 		Use: "url",
-		Short: "Get stack public URL",
+		Short: "Get public URL",
 		Run: getStackUrlHandler,
 	}
 	return cmd
 }
+
+func newGetColorCommand() *cobra.Command {
+	var cmd = &cobra.Command{
+		Use: "color",
+		Short: "Get color",
+		//Run: getColorHandler,
+	}
+	cmd.Flags().BoolP("clear-stats", "c", false, "reset color history for fresh stats")
+	return cmd
+}
+
 

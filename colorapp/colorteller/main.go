@@ -27,8 +27,19 @@ var (
 	counter int
 )
 
+var (
+	errorLog *log.Logger
+	infoLog  *log.Logger
+	pingLog *log.Logger
+	testLog *log.Logger
+)
 
 func init() {
+	errorLog = log.New(os.Stderr, "[ERROR] ", 0)
+	infoLog = log.New(os.Stdout, "[INFO] ", 0)
+	pingLog = log.New(os.Stdout, "[PING] ", 0)
+	testLog = log.New(os.Stdout, "[TEST] ", 0)
+
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	// ENABLE_XRAY_TRACING
@@ -54,7 +65,7 @@ func init() {
 	if delayStr, exists := os.LookupEnv("TEST_RESPONSE_DELAY"); exists {
 		delay, err := strconv.Atoi(delayStr)
 		if err != nil {
-			log.Printf("[Error] failed to parse TEST_RESPONSE_DELAY (%s): %s", delayStr, err)
+			errorLog.Printf("Failed to parse TEST_RESPONSE_DELAY (%s): %s", delayStr, err)
 		}
 		responseDelay = time.Duration(delay)
 	}
@@ -66,7 +77,7 @@ func init() {
 	if peStr, exists := os.LookupEnv("TEST_PERIODIC_ERROR"); exists {
 		pe, err := strconv.Atoi(peStr)
 		if err != nil {
-			log.Printf("[Error] failed to parse TEST_PERIODIC_ERROR (%s): %s", peStr, err)
+			errorLog.Printf("Failed to parse TEST_PERIODIC_ERROR (%s): %s", peStr, err)
 		}
 		periodicError = pe
 	}
@@ -93,10 +104,10 @@ func getColor() string {
 
 type colorHandler struct{}
 func (h *colorHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
-	log.Printf("[Info] color requested, responding with %s", getColor())
+	infoLog.Printf("Color requested, responding with %s", getColor())
 
 	if responseDelay > 0 {
-		log.Printf("[Test] delaying response for %d ms", responseDelay)
+		testLog.Printf("Delaying response for: %d ms", responseDelay)
 		time.Sleep(time.Millisecond * responseDelay)
 	}
 
@@ -105,12 +116,12 @@ func (h *colorHandler) ServeHTTP(writer http.ResponseWriter, request *http.Reque
 			counter = 0
 		}
 		counter++
-		log.Printf("[Test] counter = %d", counter)
+		testLog.Printf("Increment counter => %d", counter)
 
 		if counter == periodicError {
-			log.Printf("[Test] sending 500 for color %s => periodic error = %d (counter = %d)", getColor(), periodicError, counter)
+			testLog.Printf("Sending 500 for color %s => periodic error = %d (counter = %d)", getColor(), periodicError, counter)
 			writer.WriteHeader(http.StatusInternalServerError)
-			writer.Write([]byte(fmt.Sprintf("[Test] periodic error (expected) for color %s => periodic=%d (counter=%d), sending HTTP 500", getColor(), periodicError, counter)))
+			writer.Write([]byte(fmt.Sprintf("Sending HTTP 500 for testing expected periodic error: color %s => periodic=%d (counter=%d)", getColor(), periodicError, counter)))
 			return
 		}
 	}
@@ -125,12 +136,12 @@ func (h *pingHandler) ServeHTTP(writer http.ResponseWriter, request *http.Reques
 }
 
 func main() {
-	log.Printf("[Info] Starting colorteller (%s), listening on port %s", getColor(), getServerPort())
+	infoLog.Printf("Starting colorteller (%s)on port: %s", getColor(), getServerPort())
 	if responseDelay > 0 {
-		log.Printf("[Test] enabling response delays (delay = %d ms)", responseDelay)
+		testLog.Printf("Enabling response delays (delay = %d ms)", responseDelay)
 	}
 	if periodicError > 0 {
-		log.Printf("[Test] enabling periodic request errors (period = %d)", periodicError)
+		testLog.Printf("Enabling periodic request errors (period = %d)", periodicError)
 	}
 
 	var color http.Handler

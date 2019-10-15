@@ -4,13 +4,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/aws/aws-xray-sdk-go/xray"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/aws/aws-xray-sdk-go/xray"
 )
 
 const (
@@ -22,7 +23,17 @@ var (
 	enableXrayTracing bool
 )
 
+var (
+	errorLog *log.Logger
+	infoLog  *log.Logger
+	pingLog *log.Logger
+)
+
 func init() {
+	errorLog = log.New(os.Stderr, "[ERROR] ", 0)
+	infoLog = log.New(os.Stdout, "[INFO] ", 0)
+	pingLog = log.New(os.Stdout, "[PING] ", 0)
+
 	if enable, err := strconv.ParseBool(os.Getenv("ENABLE_XRAY_TRACING")); err == nil {
 		enableXrayTracing = enable
 	}
@@ -54,7 +65,7 @@ func getServerPort() string {
 func getColorTellerEndpoint() (string, error) {
 	colorTellerEndpoint := os.Getenv("COLOR_TELLER_ENDPOINT")
 	if colorTellerEndpoint == "" {
-		return "", errors.New("[Error] COLOR_TELLER_ENDPOINT is not set")
+		return "", errors.New("COLOR_TELLER_ENDPOINT is not set")
 	}
 	return colorTellerEndpoint, nil
 }
@@ -112,26 +123,26 @@ type colorHandler struct{}
 
 func (h *colorHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	ep, _ := getColorTellerEndpoint()
-	log.Printf("[Info] fetching color from: %s", ep)
+	infoLog.Printf("Requesting color from: %s", ep)
 
 	color, err := getColorFromColorTeller(request)
 	if err != nil {
-		log.Printf("[Error] fetching color (%s)", err)
+		errorLog.Printf("Request for color failed: %s", err)
 		writer.WriteHeader(http.StatusInternalServerError)
 		writer.Write([]byte("500 - Internal Error"))
 		return
 	}
 
-	log.Printf("[Info] fetched color: %s", color)
+	infoLog.Printf("Request for color fetched: %s", color)
 	addColor(color)
 
 	statsJson, err := json.Marshal(getRatios())
 	if err != nil {
-		log.Printf("[Error] getting color stats: %s", err)
+		errorLog.Printf("Failed to get color stats: %s", err)
 		fmt.Fprintf(writer, `{"color":"%s", "error":"%s"}`, color, err)
 		return
 	}
-	log.Printf("[Info] sending response: {\"color\":\"%s\", \"stats\":%s}", color, statsJson)
+	infoLog.Printf("Sending response: {\"color\":\"%s\", \"stats\":%s}", color, statsJson)
 	fmt.Fprintf(writer, `{"color":"%s", "stats": %s}`, color, statsJson)
 }
 
@@ -141,7 +152,7 @@ type clearColorStatsHandler struct{}
 
 func (h *clearColorStatsHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	clearColors()
-	log.Print("[Info] cleared color stats")
+	infoLog.Print("Cleared color stats")
 	fmt.Fprint(writer, "cleared")
 }
 
@@ -150,18 +161,18 @@ func (h *clearColorStatsHandler) ServeHTTP(writer http.ResponseWriter, request *
 type pingHandler struct{}
 
 func (h *pingHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
-	log.Println("[Ping] responding with HTTP 200")
+	pingLog.Println("Responding to ping with HTTP 200")
 	writer.WriteHeader(http.StatusOK)
 }
 
 func main() {
-	log.Printf("[Info] Starting gateway, listening on port %s", getServerPort())
+	infoLog.Printf("Starting gateway on port: %s", getServerPort())
 
 	colorTellerEndpoint, err := getColorTellerEndpoint()
 	if err != nil {
 		log.Fatalln(err)
 	}
-	log.Println("[Info] Using colorteller at " + colorTellerEndpoint)
+	infoLog.Println("Using colorteller at: " + colorTellerEndpoint)
 
 	var color http.Handler
 	var clear http.Handler
