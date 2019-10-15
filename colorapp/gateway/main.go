@@ -142,18 +142,33 @@ func (h *colorHandler) ServeHTTP(writer http.ResponseWriter, request *http.Reque
 		fmt.Fprintf(writer, `{"color":"%s", "error":"%s"}`, color, err)
 		return
 	}
-	infoLog.Printf("Sending response: {\"color\":\"%s\", \"stats\":%s}", color, statsJson)
+	infoLog.Printf("Sending color response: {\"color\":\"%s\", \"stats\":%s}", color, statsJson)
 	fmt.Fprintf(writer, `{"color":"%s", "stats": %s}`, color, statsJson)
 }
 
-// /color/clear
+// /stats/clear
 
 type clearColorStatsHandler struct{}
 
 func (h *clearColorStatsHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	clearColors()
 	infoLog.Print("Cleared color stats")
-	fmt.Fprint(writer, "cleared")
+	fmt.Fprint(writer, "Cleared color stats")
+}
+
+// /stats
+
+type getColorStatsHandler struct{}
+
+func (h *getColorStatsHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
+	statsJson, err := json.Marshal(getRatios())
+	if err != nil {
+		errorLog.Printf("Failed to get color stats: %s", err)
+		fmt.Fprintf(writer, "Failed to get color stats: %s}", err)
+		return
+	}
+	infoLog.Printf("Sending stats response: {\"stats\":%s}", statsJson)
+	fmt.Fprintf(writer, `{"stats": %s}`, statsJson)
 }
 
 // /ping
@@ -176,20 +191,27 @@ func main() {
 
 	var color http.Handler
 	var clear http.Handler
+	var stats http.Handler
 	var ping http.Handler
 
 	if enableXrayTracing {
 		xraySegmentNamer := xray.NewFixedSegmentNamer("gateway")
 		color = xray.Handler(xraySegmentNamer, &colorHandler{})
 		clear = xray.Handler(xraySegmentNamer, &clearColorStatsHandler{})
+		stats = xray.Handler(xraySegmentNamer, &getColorStatsHandler{})
 		ping = xray.Handler(xraySegmentNamer, &pingHandler{})
 	} else {
 		color = &colorHandler{}
 		clear = &clearColorStatsHandler{}
+		stats = &getColorStatsHandler{}
 		ping = &pingHandler{}
 	}
-	http.Handle("/color", color)
+
+	// leave /color/clear for existing clients
 	http.Handle("/color/clear", clear)
+	http.Handle("/color", color)
+	http.Handle("/stats/clear", clear)
+	http.Handle("/stats", stats)
 	http.Handle("/ping", ping)
 
 	log.Fatal(http.ListenAndServe(":"+getServerPort(), nil))

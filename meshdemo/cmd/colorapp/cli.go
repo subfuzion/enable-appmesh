@@ -42,6 +42,7 @@ func CLI() *cobra.Command {
 	cmd.AddCommand(newUpdateCommand())
 	cmd.AddCommand(newDeleteCommand())
 	cmd.AddCommand(newGetCommand())
+	cmd.AddCommand(newClearCommand())
 
 	return cmd
 }
@@ -144,6 +145,7 @@ func newGetCommand() *cobra.Command {
 	//cmd.AddCommand(newGetStackCommand())
 	cmd.AddCommand(newGetStackUrlCommand())
 	cmd.AddCommand(newGetColorCommand())
+	cmd.AddCommand(newGetColorStatsCommand())
 	return cmd
 }
 
@@ -169,10 +171,40 @@ func newGetColorCommand() *cobra.Command {
 	var cmd = &cobra.Command{
 		Use: "color",
 		Short: "Get color",
-		//Run: getColorHandler,
+		Run: getColorHandler,
 	}
-	cmd.Flags().BoolP("clear-stats", "c", false, "reset color history for fresh stats")
+	cmd.Flags().IntP("count", "c", 1, "run command for 1..count times (0 = run continuously")
+	cmd.Flags().BoolP("stats", "s", false, "include stats in output")
+	cmd.Flags().BoolP("json", "j", false, "print output in JSON format (otherwise print as plain text")
+	cmd.Flags().BoolP("pretty", "p", false, "pretty-print JSON output (multi-line with indentation)")
 	return cmd
 }
 
+func newGetColorStatsCommand() *cobra.Command {
+	var cmd = &cobra.Command{
+		Use: "stats",
+		Short: "Get color stats",
+		Run: getColorStatsHandler,
+	}
+	cmd.Flags().Bool("json", false, "print output in JSON format (otherwise print as plain text")
+	return cmd
+}
+
+func newClearCommand() *cobra.Command {
+	var cmd = &cobra.Command{
+		Use:   "clear",
+		Short: "Clear resource",
+	}
+	cmd.AddCommand(newClearStatsCommand())
+	return cmd
+}
+
+func newClearStatsCommand() *cobra.Command {
+	var cmd = &cobra.Command{
+		Use: "stats",
+		Short: "Reset color history for fresh stats",
+		Run: clearStatsHandler,
+	}
+	return cmd
+}
 

@@ -22,13 +22,13 @@ Parameters:
   GatewayImage:
     Description: Docker image for gateway service
     Type: String
-    Default: subfuzion/colorgateway:v8
+    Default: subfuzion/colorgateway:v9
     # Default: 226767807331.dkr.ecr.us-west-2.amazonaws.com/gateway:latest
 
   ColorTellerImage:
     Description: Docker image for colorteller service
     Type: String
-    Default: subfuzion/colorteller:v8
+    Default: subfuzion/colorteller:v9
     # Default: 226767807331.dkr.ecr.us-west-2.amazonaws.com/colorteller:latest
 
   RedColorTellerResponseDelay:
